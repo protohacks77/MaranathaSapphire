@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Notification } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import { Bell, Clock, Key, MessageSquare, Search } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useNavigate } from 'react-router-dom';
@@ -94,7 +94,7 @@ const NotificationsPage: React.FC = () => {
 
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <PageSkeleton type="cards" />;
   }
 
   const FilterButton: React.FC<{

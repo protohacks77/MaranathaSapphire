@@ -6,11 +6,9 @@ import html2canvas from 'html2canvas';
 import { db } from '../../services/firebase';
 import { Bill, Payment, Patient, UserProfile, PriceListItem, InventoryItem } from '../../types';
 import { useNotification } from '../../context/NotificationContext';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
-import { BarChart as BarChartIcon, FileSpreadsheet, FileText, ImageIcon, Users, BedDouble, LogOut, UserCheck, DollarSign, CreditCard, AlertTriangle, Banknote, UserRoundCheck, ShoppingCart, Package, ArrowDown, ArrowUp } from 'lucide-react';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
+import { BarChart as BarChartIcon, FileSpreadsheet, FileText, ImageIcon, Users, BedDouble, LogOut, UserCheck, DollarSign, CreditCard, AlertTriangle, Banknote, UserRoundCheck, ShoppingCart, Package, ArrowDown, ArrowUp, Printer } from 'lucide-react';
 import firebase from 'firebase/compat/app';
-import LineChart from '../../components/charts/LineChart';
-import BarChart from '../../components/charts/BarChart';
 
 type ReportType = 'financial_summary' | 'debtors' | 'top_selling_items' | 'paid_invoices' | 'partially_paid_invoices' | 'admissions' | 'patients_served' | 'patient_census' | 'stock_report';
 type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -587,23 +585,19 @@ const Reports: React.FC = () => {
                 return table.columns.map(col => {
                     let value = row[col.accessor];
                     
-                    // Handle Firestore Timestamps
                     if (value && typeof value === 'object' && typeof value.toDate === 'function') {
                         value = value.toDate();
                     }
 
-                    // Format Dates
                     if (value instanceof Date) {
                         value = value.toLocaleString();
                     } else if ((String(col.accessor).toLowerCase().includes('date') || col.accessor === 'createdAt') && typeof value === 'string') {
-                         // Try parsing string date
                          const d = new Date(value);
                          if (!isNaN(d.getTime())) {
                              value = d.toLocaleString();
                          }
                     }
                     
-                    // Format Numbers/Currency
                     if (typeof value === 'number') {
                          if (col.header.includes('($)')) {
                              value = value.toFixed(2);
@@ -618,7 +612,6 @@ const Reports: React.FC = () => {
             csvBody += `${rows}\n\n`;
         });
         
-        // Add BOM for Excel UTF-8 compatibility
         const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(csvBody);
         const link = document.createElement("a");
         link.setAttribute("href", csvContent);
@@ -632,7 +625,8 @@ const Reports: React.FC = () => {
         if (!reportContainerRef.current) return;
         html2canvas(reportContainerRef.current, { 
             backgroundColor: '#ffffff',
-            useCORS: true // Added to fix potential CORS warning/error with images
+            scale: 2,
+            useCORS: true
         }).then(canvas => {
             const link = document.createElement('a');
             link.download = `${generatedReport?.type}_report.png`;
@@ -642,30 +636,124 @@ const Reports: React.FC = () => {
     };
 
     const exportToWord = () => {
-        if (!reportContainerRef.current) return;
-        const styles = `
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10pt; color: #333; }
-            .report-container { width: 100%; margin: 0 auto; }
-            h2, h3, p { margin: 0; }
-            table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 20px; }
-            th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
-            th { background-color: #4a5568; color: white; }
-            tr:nth-child(even) { background-color: #f7fafc; }
-            .summary-card { border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; }
-            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        if (!generatedReport) return;
+
+        const summaryEntries = Object.entries(generatedReport.summary);
+        let summaryHtml = '';
+        if (summaryEntries.length > 0) {
+            summaryHtml = `
+                <div style="margin-top: 15px; margin-bottom: 20px;">
+                    <h3 style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Executive Summary</h3>
+                    <table style="width: 100%; border-collapse: separate; border-spacing: 10px; margin-bottom: 10px;">`;
+            for (let i = 0; i < summaryEntries.length; i += 2) {
+                const rowEntries = summaryEntries.slice(i, i + 2);
+                summaryHtml += '<tr>';
+                rowEntries.forEach(([key, val]) => {
+                    const formattedVal = typeof val === 'number'
+                        ? (String(key).includes('Value') || String(key).includes('Sales') || String(key).includes('Balance') || String(key).includes('Received') || String(key).includes('($)') || String(key).includes('Revenue'))
+                            ? `$${val.toFixed(2)}`
+                            : val.toLocaleString()
+                        : val;
+                    summaryHtml += `
+                        <td style="width: 50%; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; vertical-align: top;">
+                            <div style="font-size: 8.5pt; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">${key}</div>
+                            <div style="font-size: 18pt; font-weight: bold; color: #0f172a; margin-top: 4px;">${formattedVal}</div>
+                        </td>
+                    `;
+                });
+                if (rowEntries.length === 1) {
+                    summaryHtml += '<td style="width: 50%; border: none;"></td>';
+                }
+                summaryHtml += '</tr>';
+            }
+            summaryHtml += '</table></div>';
+        }
+
+        let tablesHtml = '';
+        generatedReport.tables.forEach(table => {
+            if (table.data.length === 0 && generatedReport.type !== 'financial_summary') return;
+            tablesHtml += `
+                <div style="margin-top: 20px; margin-bottom: 25px;">
+                    ${table.title ? `<h3 style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 8px;">${table.title}</h3>` : ''}
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
+                        <thead>
+                            <tr style="background-color: #1e293b; color: #ffffff;">
+                                ${table.columns.map(c => `<th style="padding: 10px 12px; border: 1px solid #1e293b; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 8.5pt;">${c.header}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${table.data.map((row, rIndex) => {
+                                const bg = rIndex % 2 === 0 ? '#ffffff' : '#f8fafc';
+                                return `
+                                    <tr style="background-color: ${bg};">
+                                        ${table.columns.map(c => {
+                                            let val = row[c.accessor];
+                                            if (c.accessor === 'isLow') {
+                                                val = val ? '<span style="color: #dc2626; font-weight: bold;">Low Stock</span>' : '<span style="color: #16a34a; font-weight: bold;">OK</span>';
+                                            } else if (String(c.accessor).toLowerCase().includes('date') || c.accessor === 'createdAt') {
+                                                val = val?.toDate ? new Date(val.toDate()).toLocaleDateString() : (val ? new Date(val).toLocaleDateString() : 'N/A');
+                                            } else if (String(c.header).includes('($)')) {
+                                                val = typeof val === 'number' ? `$${val.toFixed(2)}` : val;
+                                            }
+                                            return `<td style="padding: 8px 12px; border: 1px solid #e2e8f0; color: #334155;">${val ?? ''}</td>`;
+                                        }).join('')}
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        });
+
+        const dateRangeStr = dateRange ? `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}` : 'All Time';
+        const nowStr = new Date().toLocaleString();
+
+        const sourceHTML = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>${generatedReport.title}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: #1e293b; margin: 20px; }
+                </style>
+            </head>
+            <body>
+                <table style="width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px;">
+                    <tr>
+                        <td style="vertical-align: top;">
+                            <div style="font-size: 18pt; font-weight: bold; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Maranatha-Sapphire</div>
+                            <div style="font-size: 9.5pt; color: #64748b; margin-top: 2px;">Masvingo, Zimbabwe • Hospital Management System</div>
+                        </td>
+                        <td style="vertical-align: top; text-align: right;">
+                            <div style="font-size: 14pt; font-weight: bold; color: #0f172a;">${generatedReport.title}</div>
+                            <div style="font-size: 8.5pt; color: #64748b; margin-top: 2px;">Range: ${dateRangeStr}</div>
+                            <div style="font-size: 8.5pt; color: #64748b; margin-top: 2px;">Generated: ${nowStr}</div>
+                        </td>
+                    </tr>
+                </table>
+
+                ${summaryHtml}
+                ${tablesHtml}
+
+                <div style="margin-top: 30px; font-size: 8.5pt; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                    Confidential Report • Generated by Maranatha-Sapphire Management System
+                </div>
+            </body>
+            </html>
         `;
 
-        const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Export HTML to Word</title><style>${styles}</style></head><body>`;
-        const footer = "</body></html>";
-        const sourceHTML = header + reportContainerRef.current.innerHTML + footer;
-        
         const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
         const fileDownload = document.createElement("a");
         document.body.appendChild(fileDownload);
         fileDownload.href = source;
-        fileDownload.download = `${generatedReport?.type}_report.doc`;
+        fileDownload.download = `${generatedReport.type}_report.doc`;
         fileDownload.click();
         document.body.removeChild(fileDownload);
+    };
+
+    const exportToPDF = () => {
+        window.print();
     };
     
     const getButtonText = (key: ReportType) => {
@@ -676,22 +764,21 @@ const Reports: React.FC = () => {
     const formatCurrency = (value: any) => typeof value === 'number' ? `$${value.toFixed(2)}` : value;
     
     const getSummaryIconSafe = (key: string) => {
-        // FIX: Explicitly define props to any to bypass strict type check if Lucide icon types are mismatched or incomplete in current env.
-        const iconProps: any = { size: 32, className: "text-white" };
-        const containerClass = "p-4 rounded-lg";
+        const iconProps: any = { size: 28, className: "text-white" };
+        const containerClass = "p-3 rounded-lg shrink-0";
         switch (key) {
-            case 'Total Sales': return <div className={`bg-blue-500 ${containerClass}`}><DollarSign {...iconProps} /></div>;
-            case 'Cash Received': return <div className={`bg-green-500 ${containerClass}`}><Banknote {...iconProps} /></div>;
-            case 'EFT Received': return <div className={`bg-indigo-500 ${containerClass}`}><CreditCard {...iconProps} /></div>;
-            case 'Total Outstanding Balance': return <div className={`bg-red-500 ${containerClass}`}><AlertTriangle {...iconProps} /></div>;
-            case 'Total Registered Patients': return <div className={`bg-blue-500 ${containerClass}`}><Users {...iconProps} /></div>;
-            case 'Currently Admitted': return <div className={`bg-purple-500 ${containerClass}`}><BedDouble {...iconProps} /></div>;
-            case 'Pending Discharge': return <div className={`bg-yellow-500 ${containerClass}`}><LogOut {...iconProps} /></div>;
-            case 'Total Discharged': return <div className={`bg-green-500 ${containerClass}`}><UserCheck {...iconProps} /></div>;
-            case 'Stock Received (Units)': return <div className={`bg-blue-500 ${containerClass}`}><ArrowDown {...iconProps} /></div>;
-            case 'Stock Sold (Units)': return <div className={`bg-orange-500 ${containerClass}`}><ArrowUp {...iconProps} /></div>;
-            case 'Revenue from Stock ($)': return <div className={`bg-teal-500 ${containerClass}`}><DollarSign {...iconProps} /></div>;
-            default: return <div className={`bg-gray-500 ${containerClass}`}><BarChartIcon {...iconProps} /></div>;
+            case 'Total Sales': return <div className={`bg-blue-600 ${containerClass}`}><DollarSign {...iconProps} /></div>;
+            case 'Cash Received': return <div className={`bg-emerald-600 ${containerClass}`}><Banknote {...iconProps} /></div>;
+            case 'EFT Received': return <div className={`bg-indigo-600 ${containerClass}`}><CreditCard {...iconProps} /></div>;
+            case 'Total Outstanding Balance': return <div className={`bg-rose-600 ${containerClass}`}><AlertTriangle {...iconProps} /></div>;
+            case 'Total Registered Patients': return <div className={`bg-blue-600 ${containerClass}`}><Users {...iconProps} /></div>;
+            case 'Currently Admitted': return <div className={`bg-purple-600 ${containerClass}`}><BedDouble {...iconProps} /></div>;
+            case 'Pending Discharge': return <div className={`bg-amber-600 ${containerClass}`}><LogOut {...iconProps} /></div>;
+            case 'Total Discharged': return <div className={`bg-emerald-600 ${containerClass}`}><UserCheck {...iconProps} /></div>;
+            case 'Stock Received (Units)': return <div className={`bg-sky-600 ${containerClass}`}><ArrowDown {...iconProps} /></div>;
+            case 'Stock Sold (Units)': return <div className={`bg-orange-600 ${containerClass}`}><ArrowUp {...iconProps} /></div>;
+            case 'Revenue from Stock ($)': return <div className={`bg-teal-600 ${containerClass}`}><DollarSign {...iconProps} /></div>;
+            default: return <div className={`bg-slate-600 ${containerClass}`}><BarChartIcon {...iconProps} /></div>;
         }
     }
 
@@ -770,60 +857,69 @@ const Reports: React.FC = () => {
                 ))}
             </div>
 
-            {loading && !generatingReportType && <LoadingSpinner />}
+            {loading && !generatingReportType && <PageSkeleton type="table" />}
             
             {generatedReport && (
                 <div className="mt-8 bg-[#161B22] border border-gray-700 p-6 rounded-lg shadow-md">
-                    <div ref={reportContainerRef} className="report-container bg-white text-slate-800 p-8 rounded-lg">
+                    <div ref={reportContainerRef} className="report-container bg-white text-slate-800 p-8 rounded-xl shadow-lg border border-slate-200">
                         {/* Report Header */}
-                        <div className="flex justify-between items-start pb-4 border-b border-slate-200">
+                        <div className="flex flex-col sm:flex-row justify-between items-start pb-6 border-b-2 border-slate-900 gap-4">
                              <div className="flex items-center gap-4">
-                                <img src="/maranathalogo.png" alt="Logo" className="h-16 w-16 rounded-lg object-contain" />
+                                <img src="/maranathalogo.png" alt="Logo" className="h-16 w-16 rounded-xl object-contain border border-slate-200 p-1 shadow-sm" />
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">Maranatha-Sapphire</h2>
-                                    <p className="text-sm text-slate-500">Masvingo, Zimbabwe</p>
+                                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">MARANATHA-SAPPHIRE</h2>
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Masvingo, Zimbabwe • Hospital System</p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <h3 className="text-xl font-semibold text-slate-800">{generatedReport.title}</h3>
-                                <p className="text-sm text-slate-500">Generated: {new Date().toLocaleString()}</p>
+                            <div className="text-left sm:text-right">
+                                <h3 className="text-xl font-bold text-slate-800">{generatedReport.title}</h3>
+                                <p className="text-xs font-medium text-slate-500 mt-1">Date Range: {dateRange ? `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}` : 'All Time'}</p>
+                                <p className="text-xs text-slate-400">Generated: {new Date().toLocaleString()}</p>
                             </div>
                         </div>
 
                         {/* Summary Cards */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 my-6">
-                             {Object.entries(generatedReport.summary).map(([key, value]) => (
-                                <div key={key} className="summary-card">
-                                    {getSummaryIconSafe(key)}
-                                    <div>
-                                        <p className="text-sm text-slate-600 font-medium">{key}</p>
-                                        <p className="text-3xl font-bold text-slate-800 mt-1">{typeof value === 'number' ? (String(key).includes('Value') || String(key).includes('Sales') || String(key).includes('Balance') || String(key).includes('Received') || String(key).includes('($)') || String(key).includes('Revenue')) ? formatCurrency(value) : value.toLocaleString() : value}</p>
+                        {Object.keys(generatedReport.summary).length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-6">
+                                {Object.entries(generatedReport.summary).map(([key, value]) => (
+                                    <div key={key} className="summary-card flex items-center gap-4 p-4 border border-slate-200 rounded-xl bg-slate-50/80 shadow-sm">
+                                        {getSummaryIconSafe(key)}
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{key}</p>
+                                            <p className="text-2xl font-bold text-slate-900 mt-1">
+                                                {typeof value === 'number'
+                                                    ? (String(key).includes('Value') || String(key).includes('Sales') || String(key).includes('Balance') || String(key).includes('Received') || String(key).includes('($)') || String(key).includes('Revenue'))
+                                                        ? formatCurrency(value)
+                                                        : value.toLocaleString()
+                                                    : value}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
 
-                        {/* Data Table */}
+                        {/* Data Tables */}
                         {generatedReport.tables.map((table, tableIndex) => (
                            (table.data.length > 0 || generatedReport.type === 'financial_summary') && (
                             <div key={tableIndex} className="overflow-x-auto mt-8">
-                                {table.title && <h3 className="text-lg font-semibold mb-4 text-slate-800">{table.title}</h3>}
+                                {table.title && <h3 className="text-md font-bold mb-3 text-slate-800 border-b border-slate-200 pb-2">{table.title}</h3>}
                                 {table.data.length > 0 && (
-                                <table className="w-full text-sm text-left text-slate-600">
-                                    <thead className="text-xs text-white uppercase bg-slate-700">
+                                <table className="w-full text-sm text-left text-slate-600 border border-slate-200 rounded-lg overflow-hidden">
+                                    <thead className="text-xs text-white uppercase bg-slate-800">
                                         <tr>
-                                            {table.columns.map(col => <th key={col.accessor} className="px-4 py-3 font-semibold">{col.header}</th>)}
+                                            {table.columns.map(col => <th key={col.accessor} className="px-4 py-3 font-semibold tracking-wider">{col.header}</th>)}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200">
                                         {table.data.map((row, index) => (
-                                            <tr key={index} className="hover:bg-slate-100 odd:bg-white even:bg-slate-50">
+                                            <tr key={index} className="hover:bg-slate-100 odd:bg-white even:bg-slate-50 transition-colors">
                                                 {table.columns.map(col => (
                                                     <td key={col.accessor} className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
                                                         {(() => {
                                                             let cellValue = row[col.accessor];
                                                             if (col.accessor === 'isLow') {
-                                                                return cellValue ? <span style={{ color: 'red', fontWeight: 'bold' }}>Low Stock</span> : <span style={{ color: 'green' }}>OK</span>;
+                                                                return cellValue ? <span className="font-bold text-red-600">Low Stock</span> : <span className="font-medium text-emerald-600">OK</span>;
                                                             }
                                                             if (String(col.accessor).toLowerCase().includes('date') || col.accessor === 'createdAt') {
                                                                 return cellValue?.toDate ? new Date(cellValue.toDate()).toLocaleDateString() : (cellValue ? new Date(cellValue).toLocaleDateString() : 'N/A');
@@ -845,11 +941,12 @@ const Reports: React.FC = () => {
                         ))}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 pt-4 mt-6 border-t border-gray-700">
-                        <h3 className="text-lg font-semibold text-white">Export Report</h3>
-                        <button onClick={exportToCSV} disabled={generatedReport.tables.every(t => t.data.length === 0)} className="flex items-center gap-2 px-3 py-2 text-sm bg-green-800 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"><FileSpreadsheet size={16}/> CSV</button>
-                        <button onClick={exportToPNG} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-800 text-white rounded-md hover:bg-blue-700"><ImageIcon size={16}/> PNG</button>
-                        <button onClick={exportToWord} className="flex items-center gap-2 px-3 py-2 text-sm bg-sky-800 text-white rounded-md hover:bg-sky-700"><FileText size={16}/> Word</button>
+                    <div className="flex flex-wrap items-center gap-3 pt-4 mt-6 border-t border-gray-700 no-print">
+                        <h3 className="text-md font-semibold text-white mr-2">Export Report:</h3>
+                        <button onClick={exportToCSV} disabled={generatedReport.tables.every(t => t.data.length === 0)} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-emerald-800 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"><FileSpreadsheet size={16}/> CSV</button>
+                        <button onClick={exportToPNG} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-blue-800 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm"><ImageIcon size={16}/> PNG</button>
+                        <button onClick={exportToWord} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-sky-800 text-white rounded-lg hover:bg-sky-700 font-medium shadow-sm"><FileText size={16}/> Word Document</button>
+                        <button onClick={exportToPDF} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium shadow-sm"><Printer size={16}/> Print / PDF</button>
                     </div>
                 </div>
             )}

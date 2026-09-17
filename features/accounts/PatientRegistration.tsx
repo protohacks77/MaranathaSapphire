@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { Patient, Role } from '../../types';
 import { User, PlusCircle, Globe, Fingerprint, MapPin, Phone, Briefcase } from 'lucide-react';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 
 const countryCodes = [
     { code: '+263', country: 'Zimbabwe' },
@@ -238,7 +238,7 @@ const PatientRegistration: React.FC = () => {
     };
     
     if (authLoading || !isAuthorized) {
-        return <LoadingSpinner />;
+        return <PageSkeleton type="form" />;
     }
 
     return (

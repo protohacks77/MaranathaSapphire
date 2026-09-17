@@ -6,7 +6,7 @@ import firebase from 'firebase/compat/app';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../../services/firebase';
 import { PriceListItem, InventoryItem } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import { Edit, Plus, Search, Trash2, Building, LayoutGrid, Table as TableIcon, AlertTriangle } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import AddPriceListItemModal from './AddPriceListItemModal';
@@ -63,7 +63,7 @@ const PriceListManagement: React.FC = () => {
         }
     }
 
-    if (loading) return <LoadingSpinner />;
+    if (loading) return <PageSkeleton type="cards" />;
 
     return (
         <div>

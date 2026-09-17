@@ -4,7 +4,7 @@ import firebase from 'firebase/compat/app';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../../services/firebase';
 import { UserProfile } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import { Edit, Trash2, Send, Plus, Search, Mail, Building, Key, MessageSquare, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import AddUserModal from './AddUserModal';
 import EditUserModal from './EditUserModal';
@@ -111,7 +111,7 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <PageSkeleton type="cards" />;
 
   return (
     <div className="space-y-6">

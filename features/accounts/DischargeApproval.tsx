@@ -6,7 +6,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../../services/firebase';
 import { Patient } from '../../types';
 import { useNotification } from '../../context/NotificationContext';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import Modal from '../../components/utils/Modal';
 import { CheckCircle, XCircle, DollarSign, CreditCard, Receipt, Bed, AlertTriangle, History, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -114,7 +114,7 @@ const DischargeApproval: React.FC = () => {
         }
     };
 
-    if (loading) return <LoadingSpinner />;
+    if (loading) return <PageSkeleton type="cards" />;
 
     // Helper for Zimbabwe Date Time
     const formatDateTime = (dateVal: any) => {
