@@ -1,0 +1,5 @@
+{
+  "name": "Morgenster Hospital Management System",
+  "description": "A comprehensive hospital management system with role-based access for different departments like administration, accounts, doctors, nurses, and diagnostics.",
+  "requestFramePermissions": []
+}

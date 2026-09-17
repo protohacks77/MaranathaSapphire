@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const exported={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('services/firestoreReadError.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:exported});
+const {firestoreReadError}=exported;
+const url='https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=abc';
+const missing=firestoreReadError({code:'failed-precondition',message:`The query requires an index. ${url}`});
+assert.equal(missing.indexUrl,url);assert.match(missing.message,/index is missing or still building/);
+assert.match(firestoreReadError({code:'firestore/permission-denied'}).message,/permission/);
+assert.match(firestoreReadError({code:'unavailable'}).message,/connection/);
+assert.match(firestoreReadError({code:'unauthenticated'}).message,/sign in/);
+assert.equal(firestoreReadError({code:'failed-precondition',message:'Persistence unavailable'}).indexUrl,'');
+assert.equal(firestoreReadError({code:'failed-precondition',message:'Index https://console.firebase.google.com.evil.test/'}).indexUrl,'');
+console.log('Firestore error checks passed: missing indexes, permissions, connection errors, authentication, and safe index links.');

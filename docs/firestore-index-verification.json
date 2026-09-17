@@ -1,0 +1,289 @@
+{
+  "checkedAt": "2026-09-17T12:03:12.061Z",
+  "queries": {
+    "patientSearch": {
+      "ok": true,
+      "size": 1
+    },
+    "pendingQueue": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "queueSearch": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patientBills": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patientPayments": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patientDispensed": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "inventorySearch": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patientListSearch": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "staffSearch": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "priceSearch": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "notifications": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "notificationsUnread": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "conversations": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "admitted": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "admittedSearch": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "wardPatients": {
+      "ok": true,
+      "size": 0
+    },
+    "dischargeHistory": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "paidPreview": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "activity-bills": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "activity-payments": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "activity-patients": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patients-prefix0-status0-age0": {
+      "ok": true,
+      "size": 2
+    },
+    "patients-prefix0-status0-age1": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patients-prefix0-status1-age0": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patients-prefix0-status1-age1": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patients-prefix1-status0-age0": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patients-prefix1-status0-age1": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patients-prefix1-status1-age0": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "patients-prefix1-status1-age1": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "billAggregate": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "inventoryAggregate": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "billAggregateByDate": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    },
+    "cashPaymentsAggregate": {
+      "ok": false,
+      "code": "failed-precondition",
+      "needsIndex": true
+    }
+  },
+  "links": [
+    {
+      "name": "pendingQueue",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYmlsbHMvaW5kZXhlcy9fEAEaFAoQZGlzcGVuc2luZ1N0YXR1cxABGggKBGRhdGUQARoMCghfX25hbWVfXxAB"
+    },
+    {
+      "name": "queueSearch",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYmlsbHMvaW5kZXhlcy9fEAEaGQoVcGF0aWVudFNlYXJjaFByZWZpeGVzGAEaFAoQZGlzcGVuc2luZ1N0YXR1cxABGggKBGRhdGUQARoMCghfX25hbWVfXxAB"
+    },
+    {
+      "name": "patientBills",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYmlsbHMvaW5kZXhlcy9fEAEaDQoJcGF0aWVudElkEAEaCAoEZGF0ZRACGgwKCF9fbmFtZV9fEAI"
+    },
+    {
+      "name": "patientPayments",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF5bWVudHMvaW5kZXhlcy9fEAEaDQoJcGF0aWVudElkEAEaCAoEZGF0ZRACGgwKCF9fbmFtZV9fEAI"
+    },
+    {
+      "name": "patientDispensed",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Cltwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvZGlzcGVuc2luZ1JlY29yZHMvaW5kZXhlcy9fEAEaFgoScmVjaXBpZW50UGF0aWVudElkEAEaDQoJdGltZXN0YW1wEAIaDAoIX19uYW1lX18QAg"
+    },
+    {
+      "name": "inventorySearch",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClNwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvaW52ZW50b3J5L2luZGV4ZXMvXxABGhIKDnNlYXJjaFByZWZpeGVzGAEaCAoEbmFtZRABGgwKCF9fbmFtZV9fEAE"
+    },
+    {
+      "name": "patientListSearch",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaEgoOc2VhcmNoUHJlZml4ZXMYARoLCgdzdXJuYW1lEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "staffSearch",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvdXNlcnMvaW5kZXhlcy9fEAEaEgoOc2VhcmNoUHJlZml4ZXMYARoICgRuYW1lEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "priceSearch",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClNwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcHJpY2VMaXN0L2luZGV4ZXMvXxABGhIKDnNlYXJjaFByZWZpeGVzGAEaCAoEbmFtZRABGgwKCF9fbmFtZV9fEAE"
+    },
+    {
+      "name": "notifications",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Cldwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvbm90aWZpY2F0aW9ucy9pbmRleGVzL18QARoPCgtyZWNpcGllbnRJZBABGg0KCWNyZWF0ZWRBdBACGgwKCF9fbmFtZV9fEAI"
+    },
+    {
+      "name": "notificationsUnread",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Cldwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvbm90aWZpY2F0aW9ucy9pbmRleGVzL18QARoICgRyZWFkEAEaDwoLcmVjaXBpZW50SWQQARoNCgljcmVhdGVkQXQQAhoMCghfX25hbWVfXxAC"
+    },
+    {
+      "name": "conversations",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvY2hhdHMvaW5kZXhlcy9fEAEaEAoMcGFydGljaXBhbnRzGAEaDQoJdXBkYXRlZEF0EAIaDAoIX19uYW1lX18QAg"
+    },
+    {
+      "name": "admitted",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaCAoEbmFtZRABGgwKCF9fbmFtZV9fEAE"
+    },
+    {
+      "name": "admittedSearch",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaEgoOc2VhcmNoUHJlZml4ZXMYARoKCgZzdGF0dXMQARoICgRuYW1lEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "dischargeHistory",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaFAoQcmVnaXN0cmF0aW9uRGF0ZRACGgwKCF9fbmFtZV9fEAI"
+    },
+    {
+      "name": "paidPreview",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYmlsbHMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaCAoEZGF0ZRACGgwKCF9fbmFtZV9fEAI"
+    },
+    {
+      "name": "activity-bills",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYmlsbHMvaW5kZXhlcy9fEAEaDwoLcHJvY2Vzc2VkQnkQARoICgRkYXRlEAIaDAoIX19uYW1lX18QAg"
+    },
+    {
+      "name": "activity-payments",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF5bWVudHMvaW5kZXhlcy9fEAEaDwoLcHJvY2Vzc2VkQnkQARoICgRkYXRlEAIaDAoIX19uYW1lX18QAg"
+    },
+    {
+      "name": "activity-patients",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaEAoMcmVnaXN0ZXJlZEJ5EAEaFAoQcmVnaXN0cmF0aW9uRGF0ZRACGgwKCF9fbmFtZV9fEAI"
+    },
+    {
+      "name": "patients-prefix0-status0-age1",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaBwoDYWdlEAEaCwoHc3VybmFtZRABGgwKCF9fbmFtZV9fEAE"
+    },
+    {
+      "name": "patients-prefix0-status1-age0",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaCwoHc3VybmFtZRABGgwKCF9fbmFtZV9fEAE"
+    },
+    {
+      "name": "patients-prefix0-status1-age1",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaBwoDYWdlEAEaCwoHc3VybmFtZRABGgwKCF9fbmFtZV9fEAE"
+    },
+    {
+      "name": "patients-prefix1-status0-age0",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaEgoOc2VhcmNoUHJlZml4ZXMYARoLCgdzdXJuYW1lEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "patients-prefix1-status0-age1",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaEgoOc2VhcmNoUHJlZml4ZXMYARoHCgNhZ2UQARoLCgdzdXJuYW1lEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "patients-prefix1-status1-age0",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaEgoOc2VhcmNoUHJlZml4ZXMYARoKCgZzdGF0dXMQARoLCgdzdXJuYW1lEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "patients-prefix1-status1-age1",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF0aWVudHMvaW5kZXhlcy9fEAEaEgoOc2VhcmNoUHJlZml4ZXMYARoKCgZzdGF0dXMQARoHCgNhZ2UQARoLCgdzdXJuYW1lEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "billAggregate",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYmlsbHMvaW5kZXhlcy9fEAEaFAoQcGhhcm1hY3lRdWFudGl0eRABGhEKDXBoYXJtYWN5VG90YWwQARoNCgl0b3RhbEJpbGwQARoMCghfX25hbWVfXxAB"
+    },
+    {
+      "name": "inventoryAggregate",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClNwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvaW52ZW50b3J5L2luZGV4ZXMvXxABGgwKCHF1YW50aXR5EAEaDgoKc3RvY2tWYWx1ZRABGhYKEnRvdGFsU3RvY2tSZWNlaXZlZBABGgwKCF9fbmFtZV9fEAE"
+    },
+    {
+      "name": "billAggregateByDate",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYmlsbHMvaW5kZXhlcy9fEAEaCAoEZGF0ZRABGhQKEHBoYXJtYWN5UXVhbnRpdHkQARoRCg1waGFybWFjeVRvdGFsEAEaDQoJdG90YWxCaWxsEAEaDAoIX19uYW1lX18QAQ"
+    },
+    {
+      "name": "cashPaymentsAggregate",
+      "url": "https://console.firebase.google.com/v1/r/project/maranathasapphire/firestore/indexes?create_composite=ClJwcm9qZWN0cy9tYXJhbmF0aGFzYXBwaGlyZS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcGF5bWVudHMvaW5kZXhlcy9fEAEaEQoNcGF5bWVudE1ldGhvZBABGggKBGRhdGUQARoKCgZhbW91bnQQARoMCghfX25hbWVfXxAB"
+    }
+  ]
+}
