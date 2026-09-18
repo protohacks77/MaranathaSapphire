@@ -1,0 +1,50 @@
+.stationaries-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+  gap: 0;
+  align-items: start;
+  transition: grid-template-columns 900ms cubic-bezier(.4,0,.2,1), gap 900ms cubic-bezier(.4,0,.2,1);
+}
+.stationaries-workspace-open { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 1.5rem; }
+.stationaries-browser { min-width: 0; }
+.stationaries-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: 1.5rem; }
+.stationary-card { min-width: 0; transform-origin: top left; transition: padding 900ms cubic-bezier(.4,0,.2,1), border-color 300ms; }
+.stationaries-workspace-open .stationary-card { padding: 1.25rem; }
+.stationaries-panel { min-width: 0; position: sticky; top: 0; overflow: hidden; opacity: 0; transform: translateX(3rem); visibility: hidden; pointer-events: none; transition: transform 900ms cubic-bezier(.4,0,.2,1), opacity 700ms ease, visibility 0s linear 900ms; }
+.stationaries-workspace-open .stationaries-panel { opacity: 1; transform: translateX(0); visibility: visible; pointer-events: auto; transition: transform 900ms cubic-bezier(.4,0,.2,1), opacity 700ms ease, visibility 0s; }
+.stationaries-panel-inner { min-width: 0; }
+.stationaries-toolbar { min-height: 65px; }
+.stationaries-document-scroll { overflow: auto; background: #28303e; height: calc(100vh - 215px); min-height: 300px; scrollbar-width: thin; scrollbar-color: #64748b transparent; }
+.stationaries-document-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+.stationaries-document-scroll::-webkit-scrollbar-thumb { background: #64748b; border-radius: 999px; }
+.stationary-document { position: relative; min-height: 100%; }
+.stationary-preview-loading { padding: 4rem 1rem; text-align: center; }
+.stationary-pdf-pages { padding: 16px; }
+.stationary-pdf-page { background: white; margin: 0 auto 16px; max-width: 100%; box-shadow: 0 3px 16px #0005; }
+.stationary-pdf-page:last-child { margin-bottom: 0; }
+.stationary-pdf-page canvas { width: 100%; height: auto; display: block; }
+.stationary-word-frame { width: 100%; height: calc(100vh - 220px); min-height: 300px; display: block; border: 0; }
+.stationary-image { display: block; max-width: calc(100% - 32px); height: auto; margin: 16px auto; background: white; }
+.stationary-text { background: white; color: #111827; min-height: 100%; margin: 0; padding: 24px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 monospace; }
+@media (max-width: 1100px) {
+  .stationaries-workspace, .stationaries-workspace-open { display: block; }
+  .stationaries-panel { position: fixed; top: 5rem; bottom: 1rem; right: 1rem; left: 1rem; z-index: 30; }
+  .stationaries-panel-inner { height: 100%; display: flex; flex-direction: column; }
+  .stationaries-document-scroll { flex: 1; height: auto; min-height: 0; }
+  .stationary-document, .stationary-word-frame { height: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .stationaries-workspace, .stationaries-panel, .stationary-card { transition: none; } }
+@media print {
+  body:has(.stationaries-workspace-open) * { visibility: hidden; }
+  body:has(.stationaries-workspace-open) div:has(.stationary-document) { display: block !important; overflow: visible !important; height: auto !important; min-height: 0 !important; }
+  body:has(.stationaries-workspace-open) .stationary-document, body:has(.stationaries-workspace-open) .stationary-document * { visibility: visible; }
+  .stationaries-workspace-open { display: block; }
+  .stationaries-workspace-open .stationaries-panel { position: static; transform: none; overflow: visible; }
+  .stationaries-panel-inner, .stationaries-document-scroll { border: 0; padding: 0; overflow: visible; height: auto; max-height: none; }
+  .stationary-document { position: absolute; top: 0; left: 0; width: 100%; }
+  .stationary-pdf-pages { padding: 0; }
+  .stationary-pdf-page { box-shadow: none; width: 100%; margin: 0; break-after: page; break-inside: avoid; }
+  .stationary-pdf-page:last-child { break-after: auto; }
+  .stationary-image { max-width: 100%; margin: 0; }
+  .stationary-text { padding: 0; }
+}

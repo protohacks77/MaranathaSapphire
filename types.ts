@@ -351,7 +351,7 @@ export interface AdmissionRecord {
 export interface UserActivity {
   id: string; // Unique ID for the activity item
   originalId: string; // ID of the source document (bill, patient, etc.)
-  type: 'Registration' | 'Billing' | 'Payment';
+  type: 'Registration' | 'Billing' | 'Payment' | 'Doctor Note' | 'Nurse Note' | 'Clerking Sheet' | 'Vitals' | 'Prescription' | 'Lab Result' | 'Radiology Result' | 'Rehabilitation Note' | 'Discharge Summary' | 'Admission' | 'Discharge' | 'Dispensing';
   date: Date;
   patientId: string;
   patientName: string;

@@ -1,3 +1,4 @@
+import { cacheScope, peekDeviceCache, readDeviceCache, writeDeviceCache } from './deviceCache';
 import { firestoreReadError } from './firestoreReadError';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import firebase from 'firebase/compat/app';
@@ -6,8 +7,9 @@ import { cachedRead, invalidateReads } from './readCache';
 
 // Only the newest page stays live. Historical pages are fetched explicitly.
 export function useLivePagedQuery<T>(query: firebase.firestore.Query, key: string, enabled = true) {
-    const [records, setRecords] = useState<T[]>([]);
-    const [loading, setLoading] = useState(true);
+    const cached = peekDeviceCache<{ records: T[]; hasMore: boolean }>(`list:${key}`);
+    const [records, setRecords] = useState<T[]>(cached?.records || []);
+    const [loading, setLoading] = useState(enabled && !cached);
     const [loadingMore, setLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(false);
     const [error, setError] = useState('');
@@ -21,10 +23,29 @@ export function useLivePagedQuery<T>(query: firebase.firestore.Query, key: strin
     useEffect(() => {
         const request = ++generation.current;
         cursor.current = null; firstIds.current.clear(); appended.current = false;
-        busy.current = false; setRecords([]); setLoading(enabled); setLoadingMore(false); setError(''); setIndexUrl('');
+        const scope = cacheScope();
+        const stored = peekDeviceCache<{ records: T[]; hasMore: boolean }>(`list:${key}`);
+        firstIds.current = new Set((stored?.records || []).map(value => (value as any).id));
+        busy.current = false; setRecords(stored?.records || []); setHasMore(stored?.hasMore || false); setLoading(enabled && !stored); setLoadingMore(false); setError(''); setIndexUrl('');
         if (!enabled) return;
+        let received = false;
+        void readDeviceCache<{ records: T[]; hasMore: boolean }>(`list:${key}`).then(saved => {
+            if (saved && !received && request === generation.current && cacheScope() === scope) {
+                firstIds.current = new Set(saved.records.map(value => (value as any).id));
+                setRecords(saved.records); setHasMore(saved.hasMore); setLoading(false);
+            }
+        });
         return query.limit(PAGE_SIZE).onSnapshot(snapshot => {
             if (request !== generation.current) return;
+            // An incomplete empty SDK cache must not erase a previously saved list.
+            if (snapshot.metadata.fromCache && snapshot.empty && !snapshot.metadata.hasPendingWrites) {
+                if (!navigator.onLine) void readDeviceCache(`list:${key}`).then(saved => {
+                    if (!saved && request === generation.current) setError('This list has no saved data on this device. Connect to load it.');
+                });
+                setLoading(false);
+                return;
+            }
+            received = true;
             const values = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as T));
             const previousIds = firstIds.current;
             const freshIds = new Set(snapshot.docs.map(doc => doc.id));
@@ -32,6 +53,7 @@ export function useLivePagedQuery<T>(query: firebase.firestore.Query, key: strin
             setRecords(previous => [...values, ...previous.filter(value => !previousIds.has((value as any).id) && !freshIds.has((value as any).id))]);
             if (!appended.current) { cursor.current = snapshot.docs[snapshot.docs.length - 1] || null; setHasMore(snapshot.size === PAGE_SIZE); }
             setLoading(false);
+            if (cacheScope() === scope) void writeDeviceCache(`list:${key}`, { records: values, hasMore: snapshot.size === PAGE_SIZE }).catch(() => {});
         }, error => { if (request === generation.current) { const failure = firestoreReadError(error); setError(failure.message); setIndexUrl(failure.indexUrl); setLoading(false); } });
     }, [query, key, enabled, version]);
     const loadMore = useCallback(async () => {

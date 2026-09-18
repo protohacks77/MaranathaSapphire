@@ -1,4 +1,4 @@
-/* context/NotificationContext.tsx */
+import SyncStatus from '../components/utils/SyncStatus';
 import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 
@@ -69,7 +69,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     let finalMessage = message;
     
     if (isOffline && (type === 'success' || type === 'info')) {
-        finalMessage = `${message} (Saved Locally)`;
+        finalMessage = `${message} Data will be uploaded once internet is back.`;
     }
 
     const id = Date.now();
@@ -83,6 +83,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   return (
     <NotificationContext.Provider value={{ addNotification }}>
       {children}
+      <SyncStatus />
       <div className="notification-container">
         {notifications.map(n => (
           <NotificationComponent key={n.id} {...n} onDismiss={removeNotification} />

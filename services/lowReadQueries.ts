@@ -1,3 +1,5 @@
+import { getLastDataChangeAt } from './offlineStatus';
+import { recordDate } from '../features/patients/recordTimestamp';
 import firebase from 'firebase/compat/app';
 import { getFirestore, collection, query, where, getCountFromServer, getAggregateFromServer, sum, count } from 'firebase/firestore';
 import { db } from './firebase';
@@ -29,7 +31,7 @@ export async function storedSummary<T>(path: string, build: () => Promise<T>, tt
         const reference = db.doc(path);
         const snapshot = await reference.get();
         const data = snapshot.data();
-        if (data?.expiresAt > Date.now() && data?.value) return { value: data.value as T, expiresAt: data.expiresAt };
+        if (((data?.expiresAt > Date.now() && (recordDate(data?.updatedAt)?.getTime() || 0) >= getLastDataChangeAt()) || !navigator.onLine) && data?.value) return { value: data.value as T, expiresAt: data.expiresAt };
         const value = await build();
         const expiresAt = Date.now() + ttl;
         // Display summaries never authorize financial or stock decisions.

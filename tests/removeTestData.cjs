@@ -1,0 +1,15 @@
+const assert = require('node:assert/strict');
+const { isTestName, linkedToPatient } = require('../scripts/removeTestData.cjs');
+assert.equal(isTestName(' TEST '), true);
+assert.equal(isTestName('Jane', 'Test'), true);
+assert.equal(isTestName('Test Patient'), true);
+assert.equal(isTestName('Contest', 'Tester'), false);
+assert.equal(isTestName('Testimony'), false);
+assert.equal(isTestName(undefined, null), false);
+const patients = new Set(['test-patient']);
+const bills = new Set(['test-bill']);
+assert.equal(linkedToPatient({ patientId: 'test-patient' }, patients, bills), true);
+assert.equal(linkedToPatient({ recipientPatientId: 'test-patient' }, patients, bills), true);
+assert.equal(linkedToPatient({ billId: 'test-bill' }, patients, bills), true);
+assert.equal(linkedToPatient({ patientId: 'real', processedBy: 'test-user' }, patients, bills), false);
+console.log('Test cleanup matching checks passed.');

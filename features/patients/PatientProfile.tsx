@@ -1149,7 +1149,7 @@ const PatientProfile: React.FC = () => {
   
   // Read only the current admission; financial writes recheck it atomically.
   const handleAutomaticBedBilling = useCallback(async (patientData: Patient, history: AdmissionRecord[]) => {
-    if (isBillingCheckRunningRef.current || !['Admitted', 'PendingDischarge'].includes(patientData.status) || !patientData.currentWardId) return false;
+    if (!navigator.onLine || isBillingCheckRunningRef.current || !['Admitted', 'PendingDischarge'].includes(patientData.status) || !patientData.currentWardId) return false;
     const admission = history.find(record => !record.dischargeDate);
     if (!admission) return false;
     const last = recordDate(admission.lastBilledDate || admission.admissionDate);
@@ -1279,16 +1279,59 @@ const PatientProfile: React.FC = () => {
   }, [id, addNotification, handleAutomaticBedBilling]);
 
   useEffect(() => { recordPages.current = {}; setPatient(null); setRecordCounts({}); fetchPatientData(); }, [fetchPatientData]);
-  useEffect(() => { if (isRecordsPage) loadSection(activeTab); }, [isRecordsPage, activeTab, loadSection]);
+  // Local snapshots render immediately; server changes update the visible page
+  // without replacing its layout with a loading screen.
+  const editingPatient = useRef(isEditing);
+  editingPatient.current = isEditing;
   useEffect(() => {
-    if (!id || !isRecordsPage || activeTab !== 'dispensed') return;
-    // Only the newest page is live, and only while this tab is visible.
-    return db.collection('dispensingRecords').where('recipientPatientId', '==', id).orderBy('timestamp', 'desc').limit(PAGE_SIZE).onSnapshot(snapshot => {
-      if (currentPatientId.current !== id) return;
-      const documents = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as DispensingRecord));
-      setDispensedMedication(previous => [...documents, ...previous.filter(record => !documents.some(item => item.id === record.id))].sort((a, b) => (recordDate(b.timestamp)?.getTime() || 0) - (recordDate(a.timestamp)?.getTime() || 0)));
-    }, error => { const failure = firestoreReadError(error); setRecordError(failure.message); setRecordIndexUrl(failure.indexUrl); });
+    if (!id) return;
+    return db.collection('patients').doc(id).onSnapshot(snapshot => {
+      if (currentPatientId.current !== id || !snapshot.exists) return;
+      const value = { ...snapshot.data(), id: snapshot.id } as Patient;
+      setPatient(value);
+      if (!editingPatient.current) setFormData(value);
+      setLoading(false);
+    }, () => {});
+  }, [id]);
+  useEffect(() => {
+    if (!id || !isRecordsPage) return;
+    const sources = activeTab === 'financials' ? ['bills', 'payments'] : activeTab === 'dispensed' ? ['dispensingRecords'] : patientSections[activeTab] || [];
+    const setters: Record<string, (value: any[]) => void> = {
+      doctorNotes: setDoctorNotes, nurseNotes: setNurseNotes, vitals: setVitals, labResults: setLabResults,
+      radiologyResults: setRadiologyResults, rehabilitationNotes: setRehabNotes, prescriptions: setPrescriptions,
+      dischargeSummaries: setDischargeSummaries, admissionHistory: setAdmissionHistory,
+      bills: setBills, payments: setPayments, dispensingRecords: setDispensedMedication,
+    };
+    const stops = sources.map(source => {
+      const global = ['bills', 'payments', 'dispensingRecords'].includes(source);
+      const field = source === 'admissionHistory' ? 'admissionDate' : source === 'dispensingRecords' ? 'timestamp' : global ? 'date' : 'createdAt';
+      const query = global ? db.collection(source).where(source === 'dispensingRecords' ? 'recipientPatientId' : 'patientId', '==', id) : db.collection('patients').doc(id).collection(source);
+      let firstIds: Set<string> | undefined;
+      return query.orderBy(field, 'desc').limit(PAGE_SIZE).onSnapshot(snapshot => {
+        if (currentPatientId.current !== id || currentTab.current !== activeTab) return;
+        const key = `${id}:${source}`;
+        const previous = recordPages.current[key];
+        const fresh = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        const ids = new Set(fresh.map(value => value.id));
+        const previousFirstIds = firstIds || new Set((previous?.documents || []).slice(0, PAGE_SIZE).map(value => value.id));
+        const historical = (previous?.documents || []).filter(value => !previousFirstIds.has(value.id) && !ids.has(value.id));
+        firstIds = ids;
+        const page = { documents: [...fresh, ...historical], loadedAt: Date.now(),
+          cursor: historical.length ? previous?.cursor || null : snapshot.docs[snapshot.docs.length - 1] || null,
+          more: historical.length ? previous?.more || false : snapshot.size === PAGE_SIZE };
+        recordPages.current[key] = page;
+        setters[source](page.documents);
+        setRecordsLoading(false);
+        setHasMoreRecords(sources.some(name => recordPages.current[`${id}:${name}`]?.more));
+      }, failure => {
+        const error = firestoreReadError(failure);
+        setRecordError(error.message); setRecordIndexUrl(error.indexUrl); setRecordsLoading(false);
+      });
+    });
+    return () => stops.forEach(stop => stop());
   }, [id, isRecordsPage, activeTab]);
+  useEffect(() => { if (isRecordsPage) loadSection(activeTab); }, [isRecordsPage, activeTab, loadSection]);
+
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,3 +1,4 @@
+import { useOfflineView } from '../../services/useOfflineView';
 import { cachedRead } from '../../services/readCache';
 
 import React, { useEffect, useState } from 'react';
@@ -22,14 +23,7 @@ interface Activity {
 }
 
 const DepartmentActivity: React.FC = () => {
-    const [activities, setActivities] = useState<Activity[]>([]);
-    const [loading, setLoading] = useState(true);
-    const { addNotification } = useNotification();
-    
-    useEffect(() => {
-        const fetchActivities = async () => {
-            setLoading(true);
-            try {
+    const { data: activities = [], loading } = useOfflineView<Activity[]>('department-activity', async () => {
                 // 1. Fetch Accounts department users to map IDs to names
                 const usersSnapshot = await cachedRead('activity:accounts-staff', () => db.collection('users').where('department', '==', 'Accounts').get(), 300000);
                 const usersMap = new Map<string, string>();
@@ -108,19 +102,9 @@ const DepartmentActivity: React.FC = () => {
                     });
                 }
                 
-                setActivities(combined);
+                return combined.slice(0, 10);
+    });
 
-            } catch (error) {
-                console.error("Error fetching department activity:", error);
-                addNotification('Failed to load department activity.', 'error');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchActivities();
-    }, [addNotification]);
-    
     const ActivityIcon = ({ type }: { type: Activity['type']}) => {
         const size = 16;
         switch (type) {

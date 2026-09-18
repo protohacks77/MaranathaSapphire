@@ -505,5 +505,11 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "stationaryChunks",
+      "fieldPath": "base64",
+      "indexes": []
+    }
+  ]
 }

@@ -1,3 +1,5 @@
+import { withOfflineSupport, restorePendingSaves } from './offlineFirestore';
+import { updateOfflineStatus } from './offlineStatus';
 
 import firebase from "firebase/compat/app";
 import "firebase/compat/auth";
@@ -18,11 +20,28 @@ if (!firebase.apps.length) {
 }
 
 export const auth = firebase.auth();
-export const db = firebase.firestore();
-
-// The compat SDK uses enablePersistence; modular localCache settings are not supported here.
+const firestore = firebase.firestore();
+firestore.settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED });
+export const persistenceReady: Promise<boolean> = typeof window === 'undefined'
+  ? Promise.resolve(false)
+  : firestore.enablePersistence({ synchronizeTabs: true }).then(() => {
+      updateOfflineStatus({ persistence: 'ready' });
+      return true;
+    }).catch((error: any) => {
+      updateOfflineStatus({ persistence: 'unavailable' });
+      console.warn('Offline persistence unavailable:', error.code);
+      return false;
+    });
+export const db = withOfflineSupport(firestore, persistenceReady);
+export const restoreOfflineSaves = () => restorePendingSaves(firestore);
 if (typeof window !== 'undefined') {
-  db.enablePersistence({ synchronizeTabs: true }).catch((error: any) => {
-    if (!['failed-precondition', 'unimplemented'].includes(error.code)) console.warn('Offline persistence unavailable:', error.code);
-  });
+  const connectivity = () => {
+    updateOfflineStatus({ online: navigator.onLine });
+    void (navigator.onLine ? firestore.enableNetwork() : firestore.disableNetwork()).catch(() => {});
+  };
+  window.addEventListener('online', connectivity);
+  window.addEventListener('offline', connectivity);
+  if (!navigator.onLine) void persistenceReady.then(connectivity);
+  // Ask the browser to retain offline records instead of evicting them under pressure.
+  void navigator.storage?.persist?.().catch(() => {});
 }

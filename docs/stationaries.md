@@ -1,0 +1,15 @@
+# Stationaries documents
+
+Admins upload original files (up to 20 MB). PDF and DOCX render their document pages; DOCM/DOTX/DOTM use the same Word renderer. Word files are detected by extension, MIME type, or their OpenXML archive contents, including renamed files. Legacy binary DOC must be saved as DOCX first; images display directly, and text/CSV/JSON/XML/Markdown files display their actual contents. Other formats can be uploaded and downloaded but show a clear unsupported-preview message. DOCX pagination/fonts can vary slightly from Microsoft Word. Downloads preserve the original file bytes and filename. View opens the right panel; cards resize and move smoothly, restoring when the panel closes. Print is available on supported cards and in the panel toolbar.
+
+Admins can delete from cards or the preview toolbar after confirmation. Deletion removes metadata and every known file chunk in one batch without reading the payload, clears the local file cache, and closes the selected preview.
+
+The `stationaries` collection contains file metadata only. Original bytes are base64 encoded in `stationaries/{id}/stationaryChunks/{version}-{index}`. Chunks are 600,000 characters. Small uploads use one atomic batch; larger uploads split commits into groups of ten chunks, publishing metadata with the final group. This fits Firestore's [document and API request limits](https://firebase.google.com/docs/firestore/quotas). File size and SHA-256 are verified on reads; incomplete files fail visibly rather than displaying damaged content.
+
+The list uses the shared cache-first paged listener. File content is lazy loaded; complete SDK-cached chunks are checked before server reads. Reconstructed files are cached as Blobs in the existing user-scoped IndexedDB cache, keyed by immutable file version. Concurrent reads are deduplicated. Uploads seed this cache, so immediate previews do not read the file back from Firestore. Previously viewed files are available offline. The shared Firestore persistence/write queue also captures offline uploads for later synchronization.
+
+PDF renderers, workers, fonts, CMaps and WASM assets are bundled locally and included in service-worker precaching. DOCX embedded resources are rendered locally; output is sanitized and displayed in an iframe without script permissions. No external Office viewer or publicly accessible document URL is required.
+
+Firestore access rules must permit authorized staff to read both collections and administrators to write metadata/chunks. This repository does not contain the deployed rules; no rules were loosened. The index configuration disables indexing on `stationaryChunks.base64`; deploy that field override with the existing index deployment command when releasing. No new composite index is required for the list or chunk reads.
+
+Validation: TypeScript, production build, focused storage checks (`node tests/stationaries.cjs`), and a fixture-only browser check for PDF/DOCX pages, tables, headers/footers, panel resize/restore, cached repeat views and upload previews. No hospital data was changed during validation.

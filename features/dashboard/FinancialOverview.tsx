@@ -1,3 +1,4 @@
+import { useOfflineView } from '../../services/useOfflineView';
 import { financialSummary } from '../../services/lowReadQueries';
 import React, { useEffect, useState } from 'react';
 import { db } from '../../services/firebase';
@@ -10,27 +11,11 @@ interface FinancialStats {
 }
 
 const FinancialOverview: React.FC = () => {
-    const [stats, setStats] = useState<FinancialStats>({ monthlySales: 0, monthlyPaid: 0, totalUnpaid: 0 });
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchStats = async () => {
-            setLoading(true);
-            try {
-                const now = new Date();
-                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
-
-                setStats(await financialSummary(startOfMonth, endOfMonth));
-            } catch (error) {
-                console.error("Error fetching financial overview:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchStats();
-    }, []);
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
+    const { data, loading } = useOfflineView(`financial:${start.slice(0, 7)}`, () => financialSummary(start, end));
+    const stats = data || { monthlySales: 0, monthlyPaid: 0, totalUnpaid: 0 };
 
     if (loading) {
         return (

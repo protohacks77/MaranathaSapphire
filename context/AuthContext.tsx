@@ -2,7 +2,8 @@ import { invalidateReads } from '../services/readCache';
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
-import { auth, db } from '../services/firebase';
+import { setCacheUser } from '../services/deviceCache';
+import { auth, db, restoreOfflineSaves } from '../services/firebase';
 import { UserProfile } from '../types';
 import LoadingSpinner from '../components/utils/LoadingSpinner';
 
@@ -31,26 +32,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, 10000); // 10-second timeout
 
+    let stopProfile: (() => void) | undefined;
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       clearTimeout(authTimeout);
+      stopProfile?.();
+      setLoading(true);
       invalidateReads();
+      setCacheUser(user?.uid || null);
       setCurrentUser(user);
-      if (user) {
-        const userDocRef = db.collection('users').doc(user.uid);
-        const userDoc = await userDocRef.get();
-        if (userDoc.exists) {
-          setUserProfile({ id: user.uid, ...userDoc.data() } as UserProfile);
-        } else {
-          setUserProfile(null);
+      setUserProfile(null);
+      await restoreOfflineSaves();
+      try {
+        if (user) {
+          const userDocRef = db.collection('users').doc(user.uid);
+          let userDoc;
+          try { userDoc = await userDocRef.get({ source: 'cache' }); } catch { /* First login needs the server. */ }
+          if (!userDoc?.exists) userDoc = await userDocRef.get();
+          if (userDoc.exists && auth.currentUser?.uid === user.uid) {
+            setUserProfile({ id: user.uid, ...userDoc.data() } as UserProfile);
+          }
+          if (auth.currentUser?.uid === user.uid) stopProfile = userDocRef.onSnapshot(snapshot => {
+            if (auth.currentUser?.uid !== user.uid) return;
+            if (snapshot.exists) setUserProfile({ id: user.uid, ...snapshot.data() } as UserProfile);
+            else if (!snapshot.metadata.fromCache) setUserProfile(null);
+          }, error => console.warn('Could not refresh user profile:', error));
         }
-      } else {
-        setUserProfile(null);
-      }
+      } catch (error) { console.warn('Could not load user profile:', error); }
       setLoading(false);
     });
 
     return () => {
         unsubscribe();
+        stopProfile?.();
         clearTimeout(authTimeout);
     };
   }, []);

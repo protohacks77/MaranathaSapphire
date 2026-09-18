@@ -1,3 +1,4 @@
+import { useOfflineView } from '../../services/useOfflineView';
 import { cachedRead } from '../../services/readCache';
 import { countRecords, storedSummary } from '../../services/lowReadQueries';
 
@@ -17,34 +18,15 @@ interface BedOccupancyProps {
 }
 
 const BedOccupancy: React.FC<BedOccupancyProps> = ({ onWardClick }) => {
-    const [occupancy, setOccupancy] = useState<OccupancyData[]>([]);
-    const [loading, setLoading] = useState(true);
-    const { addNotification } = useNotification();
+    const { data, loading } = useOfflineView<OccupancyData[]>('ward-occupancy', async () => {
+        const snapshot = await db.collection('wards').get();
+        const wards = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ward));
+        return storedSummary('summaries/ward-occupancy', () => Promise.all(wards.map(async ward => ({
+            ward, occupied: await countRecords('patients', [['currentWardId', '==', ward.id], ['status', 'in', ['Admitted', 'PendingDischarge']]]),
+        }))), 60_000);
+    });
+    const occupancy = data || [];
 
-    useEffect(() => {
-        const fetchOccupancy = async () => {
-            setLoading(true);
-            try {
-                const wardsSnapshot = await cachedRead('wards:all', () => db.collection('wards').get(), 300_000);
-                const wards = wardsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ward));
-
-                const occupancyData = await storedSummary('summaries/ward-occupancy', () => Promise.all(wards.map(async ward => ({
-                    ward, occupied: await countRecords('patients', [['currentWardId', '==', ward.id], ['status', 'in', ['Admitted', 'PendingDischarge']]]),
-                }))), 60_000);
-
-                setOccupancy(occupancyData);
-
-            } catch (error) {
-                console.error("Error fetching bed occupancy:", error);
-                addNotification('Failed to load bed occupancy data.', 'error');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchOccupancy();
-    }, [addNotification]);
-    
     if (loading) {
         return (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

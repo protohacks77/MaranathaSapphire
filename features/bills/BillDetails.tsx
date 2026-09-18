@@ -20,19 +20,20 @@ const BillDetails: React.FC = () => {
     if (!billId) return;
     setLoading(true);
     const docRef = db.collection('bills').doc(billId);
-    docRef.get().then(doc => {
+    const unsubscribe = docRef.onSnapshot(doc => {
       if (doc.exists) {
         setBill({ id: doc.id, ...doc.data() } as Bill);
-      } else {
+      } else if (!doc.metadata.fromCache) {
         addNotification('Bill not found.', 'error');
         navigate(-1);
       }
-    }).catch(err => {
+      setLoading(false);
+    }, err => {
         addNotification('Failed to fetch bill details.', 'error');
         console.error(err);
-    }).finally(() => {
         setLoading(false);
     });
+    return unsubscribe;
   }, [billId, navigate, addNotification]);
   
   const handlePrintA4 = () => {

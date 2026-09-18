@@ -1,3 +1,4 @@
+import { useOfflineView } from '../../services/useOfflineView';
 import { usePagedQuery } from '../../services/usePagedQuery';
 import LoadMore from '../../components/utils/LoadMore';
 import firebase from 'firebase/compat/app';
@@ -113,12 +114,8 @@ const NurseDashboard = () => {
 const DefaultDashboard = () => <div></div>;
 
 const AccountantDashboard = () => {
-    const [pendingDischarges, setPendingDischarges] = useState(0);
+    const { data: pendingDischarges = 0 } = useOfflineView('pending-discharge-count', () => countRecords('patients', [['status', '==', 'PendingDischarge']]));
     const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
-
-    useEffect(() => {
-        countRecords('patients', [['status', '==', 'PendingDischarge']]).then(setPendingDischarges).catch(console.error);
-    }, []);
 
     return (
       <div className="space-y-8">
@@ -280,12 +277,8 @@ const VitalsCheckerDashboard = () => {
 };
 
 const PharmacyDashboard = () => {
-    const [lowStockCount, setLowStockCount] = useState(0);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        dashboardCounts().then(counts => setLowStockCount(counts.lowStock)).catch(console.error).finally(() => setLoading(false));
-    }, []);
+    const { data: counts, loading } = useOfflineView('dashboard-counts', dashboardCounts);
+    const lowStockCount = counts?.lowStock || 0;
 
     return (
         <div>

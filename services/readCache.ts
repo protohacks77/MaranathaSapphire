@@ -1,10 +1,10 @@
-// In-memory only: medical records are cleared on sign-out and never stored in localStorage.
+// SDK snapshots stay in memory here; Firestore owns their persistent IndexedDB cache.
 type Entry = { value: unknown; expiresAt: number };
 const entries = new Map<string, Entry>();
 const pending = new Map<string, Promise<unknown>>();
 export async function cachedRead<T>(key: string, loader: () => Promise<T>, ttl: number | ((value: T) => number) = 60_000): Promise<T> {
     const hit = entries.get(key);
-    if (hit && hit.expiresAt > Date.now()) return hit.value as T;
+    if (hit && (hit.expiresAt > Date.now() || (typeof navigator !== 'undefined' && !navigator.onLine))) return hit.value as T;
     const running = pending.get(key);
     if (running) return running as Promise<T>;
     const request = loader().then(value => {

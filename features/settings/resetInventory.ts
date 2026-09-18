@@ -13,6 +13,7 @@ export interface InventoryResetPreview {
 }
 
 async function requireAdmin() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error('Connect to the internet before resetting inventory.');
     const user = auth.currentUser;
     if (!user) throw new Error('Sign in as an administrator to reset inventory.');
     const profile = await db.collection('users').doc(user.uid).get();

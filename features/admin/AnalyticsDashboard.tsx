@@ -1,3 +1,4 @@
+import { useOfflineView } from '../../services/useOfflineView';
 import { cachedRead } from '../../services/readCache';
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../services/firebase';
@@ -11,48 +12,22 @@ type Period = '7d' | '30d' | '90d';
 
 const AnalyticsDashboard: React.FC = () => {
     const [period, setPeriod] = useState<Period>('30d');
-    const [loading, setLoading] = useState(true);
-    const [allData, setAllData] = useState<{
-        bills: Bill[];
-        patients: Patient[];
-        users: UserProfile[];
-        priceList: Map<string, string>;
-    } | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const [billsSnap, patientsSnap, usersSnap, priceListSnap] = await Promise.all([
-                    cachedRead(`analytics:bills:${period}`, () => db.collection('bills').where('date', '>=', new Date(Date.now() - Number(period.slice(0, -1)) * 86400000).toISOString()).get()),
-                    cachedRead(`analytics:patients:${period}`, () => db.collection('patients').where('registrationDate', '>=', new Date(Date.now() - Number(period.slice(0, -1)) * 86400000).toISOString()).get()),
-                    cachedRead('analytics:users', () => db.collection('users').get(), 300_000),
-                    cachedRead('analytics:prices', () => db.collection('priceList').get(), 300_000),
-                ]);
-
-                const priceListMap = new Map<string, string>();
-                priceListSnap.docs.forEach(doc => {
-                    const item = doc.data() as PriceListItem;
-                    priceListMap.set(item.name, item.department);
-                });
-
-                if (cancelled) return;
-                setAllData({
-                    bills: billsSnap.docs.map(doc => doc.data() as Bill),
-                    patients: patientsSnap.docs.map(doc => doc.data() as Patient),
-                    users: usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile)),
-                    priceList: priceListMap,
-                });
-            } catch (error) {
-                console.error("Error fetching analytics data:", error);
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
+    const { data: allData, loading } = useOfflineView(`analytics:${period}`, async () => {
+        const start = new Date();
+        start.setDate(start.getDate() - Number(period.slice(0, -1)));
+        start.setHours(0, 0, 0, 0);
+        const [bills, patients, users, prices] = await Promise.all([
+            db.collection('bills').where('date', '>=', start.toISOString()).get(),
+            db.collection('patients').where('registrationDate', '>=', start.toISOString()).get(),
+            db.collection('users').get(), db.collection('priceList').get(),
+        ]);
+        return {
+            bills: bills.docs.map(doc => doc.data() as Bill),
+            patients: patients.docs.map(doc => doc.data() as Patient),
+            users: users.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile)),
+            priceList: new Map(prices.docs.map(doc => { const item = doc.data() as PriceListItem; return [item.name, item.department]; })),
         };
-        fetchData();
-        return () => { cancelled = true; };
-    }, [period]);
+    });
 
     const dateRange = useMemo(() => {
         const end = new Date();

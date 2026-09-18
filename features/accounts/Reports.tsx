@@ -1,13 +1,15 @@
+import { useOfflineView } from '../../services/useOfflineView';
 import { reportPreviews } from '../../services/reportPreviews';
-import { dateQuery, aggregateRecords } from '../../services/lowReadQueries';
-import { cachedRead } from '../../services/readCache';
+import { dateQuery } from '../../services/lowReadQueries';
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import html2canvas from 'html2canvas';
 import { db } from '../../services/firebase';
-import { Bill, Payment, Patient, UserProfile, PriceListItem, InventoryItem } from '../../types';
+import { Bill, Payment, Patient, InventoryItem } from '../../types';
 import { useNotification } from '../../context/NotificationContext';
-import PageSkeleton from '../../components/utils/SkeletonLoader';
-import { BarChart as BarChartIcon, FileSpreadsheet, FileText, ImageIcon, Users, BedDouble, LogOut, UserCheck, DollarSign, CreditCard, AlertTriangle, Banknote, UserRoundCheck, ShoppingCart, Package, ArrowDown, ArrowUp, Printer } from 'lucide-react';
+import './reports.css';
+import { firestoreReadError } from '../../services/firestoreReadError';
+import { financialReportSummary, reportCellText } from '../../services/reportFormatting';
+import { A4_WIDTH, A4_HEIGHT, paginateReport, renderReportPage, measureReportText, loadReportLogo, reportPageCanvas } from '../../services/reportA4';
+import { BarChart as BarChartIcon, FileText, ImageIcon, Users, BedDouble, UserCheck, CreditCard, AlertTriangle, UserRoundCheck, ShoppingCart, Package, Printer, Download, ChevronDown, X, Loader2 } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 type ReportType = 'financial_summary' | 'debtors' | 'top_selling_items' | 'paid_invoices' | 'partially_paid_invoices' | 'admissions' | 'patients_served' | 'patient_census' | 'stock_report';
@@ -24,13 +26,15 @@ interface GeneratedReport {
   tables: ReportTable[];
   summary: Record<string, number | string>;
   type: ReportType;
+  period: string;
+  generatedAt: string;
 }
 
 const reportTypesConfig: { key: ReportType; title: string; description: string; icon: React.ReactNode; needsDate: boolean }[] = [
     { key: 'financial_summary', title: 'Financial Summary', description: 'High-level overview of sales, payments, and outstanding balances.', icon: <BarChartIcon />, needsDate: true },
     { key: 'patient_census', title: 'Patient Census', description: 'A real-time snapshot of patient counts and a full patient list.', icon: <Users />, needsDate: false },
     { key: 'stock_report', title: 'Stock Report', description: 'Comprehensive overview of inventory levels, usage, and new additions.', icon: <Package />, needsDate: true },
-    { key: 'top_selling_items', title: 'Top Selling Items', description: 'Top 5 most frequently billed services and products.', icon: <ShoppingCart />, needsDate: true },
+    { key: 'top_selling_items', title: 'Top Selling Items', description: 'Top 20 most frequently billed services and products.', icon: <ShoppingCart />, needsDate: true },
     { key: 'admissions', title: 'Admissions Report', description: 'All patients admitted within the selected period.', icon: <BedDouble />, needsDate: true },
     { key: 'debtors', title: 'Unpaid Patients', description: 'Lists all patients with an outstanding balance.', icon: <AlertTriangle />, needsDate: false },
     { key: 'paid_invoices', title: 'Paid Invoices', description: 'All fully paid invoices within the selected period.', icon: <UserCheck />, needsDate: true },
@@ -38,116 +42,86 @@ const reportTypesConfig: { key: ReportType; title: string; description: string; 
     { key: 'patients_served', title: 'Patients Served', description: 'Unique patients who received any billable service.', icon: <UserRoundCheck />, needsDate: true },
 ];
 
-const ReportPreview: React.FC<{ reportKey: ReportType; data: any }> = ({ reportKey, data }) => {
-    const FullReportPrompt = () => (
-        <p className="mt-4 text-center text-xs text-gray-500 italic px-4">
-            Click 'Generate Report' for full details.
-        </p>
-    );
-
-    if (data?.deferred) return <p className="text-sm text-gray-500">Load this preview when needed.</p>;
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-        return (
-             <div className="w-full h-full flex flex-col justify-between">
-                <div className="flex-grow flex items-center justify-center">
-                    <p className="text-gray-600 text-sm">No preview data for this period.</p>
-                </div>
-                 <FullReportPrompt />
-            </div>
-        );
-    }
-
-    let columns: { header: string; accessor: string }[] = [];
-    let content: React.ReactNode;
-    
-    switch (reportKey) {
-        case 'financial_summary':
-        case 'patient_census':
-        case 'patients_served':
-        case 'stock_report':
-            content = (
-                <div className="w-full px-4">
-                    <div className="space-y-3 text-sm">
-                        {Object.entries(data).map(([key, value]) => (
-                            <div key={key} className="flex justify-between items-baseline border-b border-dashed border-gray-700 pb-2">
-                                <span className="text-gray-400">{key}</span>
-                                <span className="font-bold text-lg text-white">{value as React.ReactNode}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-            break;
-        case 'top_selling_items':
-            columns = [{ header: 'Item', accessor: 'name' }, { header: 'Sold', accessor: 'quantity' }];
-            break;
-        case 'debtors':
-            columns = [{ header: 'Patient', accessor: 'name' }, { header: 'Balance', accessor: 'balance' }];
-            break;
-        case 'paid_invoices':
-            columns = [{ header: 'Patient', accessor: 'patientName' }, { header: 'Amount', accessor: 'total' }];
-            break;
-        case 'partially_paid_invoices':
-            columns = [{ header: 'Patient', accessor: 'patientName' }, { header: 'Balance', accessor: 'balance' }];
-            break;
-        case 'admissions':
-            columns = [{ header: 'Patient', accessor: 'name' }, { header: 'Date', accessor: 'date' }];
-            break;
-        default:
-            return <div className="text-gray-600 text-sm">No preview available.</div>;
-    }
-
-    if (columns.length > 0 && Array.isArray(data)) {
-        content = (
-            <div className="overflow-x-auto text-xs w-full px-2">
-                <table className="w-full">
-                    <thead>
-                        <tr className="border-b border-gray-700">
-                            {columns.map(col => (
-                                <th key={col.accessor} className="pb-2 text-left font-semibold text-gray-400 uppercase tracking-wider">{col.header}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {data.slice(0, 4).map((row: any, rowIndex: number) => (
-                            <tr key={rowIndex} className={rowIndex < 3 ? "border-b border-gray-800" : ""}>
-                                {columns.map(col => (
-                                    <td key={col.accessor} className="py-2.5 text-gray-300 truncate" title={row[col.accessor]}>
-                                        {row[col.accessor]}
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        );
-    }
-    
-    return (
-        <div className="w-full h-full flex flex-col justify-between">
-            <div className="flex-grow flex items-center">
-                 {content}
-            </div>
-            <FullReportPrompt />
-        </div>
-    );
+const ReportDocument: React.FC<{ report: GeneratedReport }> = ({ report }) => {
+    const [logo, setLogo] = useState('/maranathalogo.png');
+    const pages = useMemo(() => paginateReport(report, measureReportText), [report]);
+    useEffect(() => {
+        let cancelled = false;
+        loadReportLogo().then(value => { if (!cancelled) setLogo(value); }).catch(console.error);
+        return () => { cancelled = true; };
+    }, []);
+    return <div className="report-output" aria-label={`${report.title} A4 document`}>
+        {pages.map((page, index) => <div key={index} className="report-a4-page" dangerouslySetInnerHTML={{ __html: renderReportPage(report, page, index, pages.length, logo) }} />)}
+    </div>;
 };
 
+const ReportPreview: React.FC<{ reportKey: ReportType; data: any; onRetry: () => void }> = ({ reportKey, data, onRetry }) => {
+    if (data?.error) return <div className="text-sm text-gray-400"><p role="alert">{data.error}</p><button onClick={onRetry} className="mt-2 text-sky-400 hover:underline">Retry</button></div>;
+    if (!data || (Array.isArray(data) && !data.length)) return <p className="text-sm text-gray-400">No records for this period.</p>;
+    if (!Array.isArray(data)) return <dl className="w-full space-y-3 text-sm">
+        {Object.entries(data).map(([key, value]) => <div key={key} className="flex items-baseline justify-between gap-3 border-b border-gray-700 pb-2"><dt className="text-gray-400">{key}</dt><dd className="font-semibold text-white">{reportCellText(value, key)}</dd></div>)}
+    </dl>;
+    const columns: Partial<Record<ReportType, { header: string; accessor: string }[]>> = {
+        debtors: [{ header: 'Patient', accessor: 'name' }, { header: 'Balance', accessor: 'balance' }],
+        paid_invoices: [{ header: 'Patient', accessor: 'patientName' }, { header: 'Total', accessor: 'total' }],
+        partially_paid_invoices: [{ header: 'Patient', accessor: 'patientName' }, { header: 'Balance', accessor: 'balance' }],
+        admissions: [{ header: 'Patient', accessor: 'name' }, { header: 'Date', accessor: 'registrationDate' }],
+        top_selling_items: [{ header: 'Item', accessor: 'name' }, { header: 'Billed', accessor: 'quantity' }],
+    };
+    const fields = columns[reportKey] || [];
+    return <div className="w-full overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr>{fields.map(column => <th key={column.accessor} className="border-b border-gray-700 py-2 text-gray-400">{column.header}</th>)}</tr></thead><tbody>{data.slice(0, 4).map((row, index) => <tr key={index}>{fields.map(column => <td key={column.accessor} className="border-b border-gray-800 py-2 text-gray-300">{reportCellText(row[column.accessor], column.header, column.accessor)}</td>)}</tr>)}</tbody></table></div>;
+};
 
 const Reports: React.FC = () => {
     const [datePreset, setDatePreset] = useState<DatePreset>('month');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
-    const [loading, setLoading] = useState(false);
     const [generatingReportType, setGeneratingReportType] = useState<ReportType | null>(null);
-    const [detailedPreviews, setDetailedPreviews] = useState<string[]>([]);
+    const [previewReload, setPreviewReload] = useState(0);
+    const generationRequest = useRef(0);
+    useEffect(() => () => { generationRequest.current++; }, []);
     const [generatedReport, setGeneratedReport] = useState<GeneratedReport | null>(null);
-    const [previewData, setPreviewData] = useState<Record<string, any>>({});
-    const [previewLoading, setPreviewLoading] = useState(true);
+
+    const [panelOpen, setPanelOpen] = useState(false);
+    const [downloadOpen, setDownloadOpen] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [reportError, setReportError] = useState('');
+    const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const dismiss = (event: MouseEvent) => {
+            if (!downloadMenuRef.current?.contains(event.target as Node)) setDownloadOpen(false);
+        };
+        const escape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') { setDownloadOpen(false); setPanelOpen(false); }
+        };
+        document.addEventListener('mousedown', dismiss);
+        document.addEventListener('keydown', escape);
+        return () => { document.removeEventListener('mousedown', dismiss); document.removeEventListener('keydown', escape); };
+    }, []);
 
     const { addNotification } = useNotification();
-    const reportContainerRef = useRef<HTMLDivElement>(null);
+    const browserRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        const browser = browserRef.current;
+        if (!browser || typeof ResizeObserver === 'undefined') return;
+        const positions = new Map<HTMLElement, { left: number; top: number; width: number; height: number }>();
+        const animations = new Map<HTMLElement, Animation>();
+        const observer = new ResizeObserver(() => {
+            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            browser.querySelectorAll<HTMLElement>('.report-card').forEach(card => {
+                const next = { left: card.offsetLeft, top: card.offsetTop, width: card.offsetWidth, height: card.offsetHeight };
+                const previous = positions.get(card);
+                if (!reducedMotion && previous && (Math.abs(previous.left - next.left) > 20 || Math.abs(previous.top - next.top) > 20 || Math.abs(previous.width - next.width) > 20)) {
+                    animations.get(card)?.cancel();
+                    animations.set(card, card.animate([{ transform: `translate(${previous.left - next.left}px, ${previous.top - next.top}px) scale(${previous.width / next.width}, ${previous.height / next.height})` }, { transform: 'none' }], { duration: 650, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }));
+                }
+                positions.set(card, next);
+            });
+        });
+        observer.observe(browser);
+        return () => { observer.disconnect(); animations.forEach(animation => animation.cancel()); };
+    }, []);
 
     const dateRange = useMemo(() => {
         const now = new Date();
@@ -170,105 +144,68 @@ const Reports: React.FC = () => {
                 break;
             case 'custom':
                 if (!customStartDate || !customEndDate) return null;
-                start = new Date(customStartDate);
-                end = new Date(customEndDate);
+                start = new Date(`${customStartDate}T00:00:00`);
+                end = new Date(`${customEndDate}T00:00:00`);
+                if (start > end || isNaN(start.getTime()) || isNaN(end.getTime())) return null;
                 end.setHours(23, 59, 59, 999);
                 break;
         }
         return { start, end };
     }, [datePreset, customStartDate, customEndDate]);
 
-    useEffect(() => {
-        const fetchPreviewData = async () => {
-            if (!dateRange) {
-                if(datePreset === 'custom' && (!customStartDate || !customEndDate)) return;
-            }
-            
-            setPreviewLoading(true);
-            try {
-                const previews = await reportPreviews(dateRange, detailedPreviews);
-                setPreviewData(previews);
-            } catch (error) {
-                console.error("Error fetching preview data:", error);
-                addNotification("Could not load report previews.", "error");
-            } finally {
-                setPreviewLoading(false);
-            }
-        };
-
-        fetchPreviewData();
-    }, [dateRange, addNotification, datePreset, customStartDate, customEndDate, detailedPreviews]);
+    const { data: previewData = {}, loading: previewLoading } = useOfflineView<Record<string, any>>(
+        `report-previews:${datePreset}:${dateRange?.start.toISOString()}:${dateRange?.end.toISOString()}:${previewReload}`,
+        () => dateRange ? reportPreviews(dateRange) : Promise.resolve({}), 300_000,
+    );
 
     const handleGenerateReport = async (reportType: ReportType) => {
-        setLoading(true);
+        const request = ++generationRequest.current;
         setGeneratingReportType(reportType);
-        setGeneratedReport(null);
+        setReportError('');
+        setDownloadOpen(false);
         
         const nonDateReports: ReportType[] = ['debtors', 'patient_census'];
         if (!dateRange && !nonDateReports.includes(reportType)) {
             addNotification('Please select a valid date range.', 'warning');
-            setLoading(false);
             setGeneratingReportType(null);
             return;
         }
 
         try {
             const empty = { docs: [] };
-            const needsBills = [ 'stock_report', 'top_selling_items', 'paid_invoices', 'partially_paid_invoices', 'patients_served'].includes(reportType);
-            const needsPatients = ['patient_census', 'debtors', 'admissions'].includes(reportType);
-            let billQuery = dateQuery('bills', 'date', dateRange);
-            if (reportType === 'paid_invoices') billQuery = billQuery.where('status', '==', 'Paid');
-            if (reportType === 'partially_paid_invoices') billQuery = billQuery.where('status', '==', 'Partially Paid');
+            const needsBills = [ 'financial_summary', 'stock_report', 'top_selling_items', 'paid_invoices', 'partially_paid_invoices', 'patients_served'].includes(reportType);
+            const needsPatients = ['financial_summary', 'patient_census', 'debtors', 'admissions'].includes(reportType);
+            const billQuery = dateQuery('bills', 'date', dateRange);
+            // Filter invoice status after the date query to avoid composite-index failures.
             let patientQuery: firebase.firestore.Query = db.collection('patients');
             if (reportType === 'debtors') patientQuery = patientQuery.where('financials.balance', '>', 0);
             if (reportType === 'admissions') patientQuery = dateQuery('patients', 'registrationDate', dateRange);
             const [billsSnapshot, paymentsSnapshot, patientsSnapshot, inventorySnapshot] = await Promise.all([
-                 needsBills ? cachedRead(`report:bills:${reportType}:${JSON.stringify(dateRange)}`, () => billQuery.get()) : empty,
-                 empty,
-                 needsPatients ? cachedRead(`report:patients:${reportType}:${JSON.stringify(dateRange)}`, () => patientQuery.get()) : empty,
-                 reportType === 'stock_report' ? cachedRead('report:inventory', () => db.collection('inventory').orderBy('name').get()) : empty,
+                 needsBills ? billQuery.get() : empty,
+                 reportType === 'financial_summary' ? dateQuery('payments', 'date', dateRange).get() : empty,
+                 needsPatients ? patientQuery.get() : empty,
+                 reportType === 'stock_report' ? db.collection('inventory').get() : empty,
             ]);
 
-            const financialBounds: import('../../services/lowReadQueries').Filters = dateRange ? [['date', '>=', dateRange.start.toISOString()], ['date', '<=', dateRange.end.toISOString()]] : [];
-            const financial = reportType === 'financial_summary' ? await Promise.all([
-                aggregateRecords('bills', {total: 'totalBill'}, financialBounds),
-                aggregateRecords('payments', {total: 'amount'}, [...financialBounds, ['paymentMethod', '==', 'CASH']]),
-                aggregateRecords('payments', {total: 'amount'}, [...financialBounds, ['paymentMethod', '==', 'EFT']]),
-                aggregateRecords('patients', {total: 'financials.balance'}),
-            ]) : [];
-            const allBills = billsSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as Bill));
-            const allPayments: Payment[] = [];
-            let allPatients = patientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patient));
+            const allBills = billsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Bill));
+            const allPayments = paymentsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Payment));
+            let allPatients = patientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Patient));
             if (reportType === 'patients_served') {
-                const ids = [...new Set(allBills.map(bill => bill.patientId))];
+                const ids = [...new Set(allBills.map(bill => bill.patientId).filter(Boolean))];
                 const pages = await Promise.all(Array.from({ length: Math.ceil(ids.length / 30) }, (_, index) =>
-                    cachedRead(`report:served:${ids.slice(index * 30, index * 30 + 30).join(',')}`, () => db.collection('patients').where(firebase.firestore.FieldPath.documentId(), 'in', ids.slice(index * 30, index * 30 + 30)).get())));
+                    db.collection('patients').where(firebase.firestore.FieldPath.documentId(), 'in', ids.slice(index * 30, index * 30 + 30)).get()));
                 allPatients = pages.flatMap(page => page.docs.map(doc => ({ ...doc.data(), id: doc.id } as Patient)));
             }
-            const allInventory = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InventoryItem));
+            const allInventory = inventorySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as InventoryItem)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             const billsInRange = dateRange ? allBills.filter(b => new Date(b.date) >= dateRange.start && new Date(b.date) <= dateRange.end) : allBills;
             const paymentsInRange = dateRange ? allPayments.filter(p => new Date(p.date) >= dateRange.start && new Date(p.date) <= dateRange.end) : allPayments;
             
-            let report: Omit<GeneratedReport, 'type'> | null = null;
+            let report: Omit<GeneratedReport, 'type' | 'period' | 'generatedAt'> | null = null;
             
             switch (reportType) {
                 case 'financial_summary':
-                    const totalSales = financial[0].total;
-                    const totalCash = financial[1].total;
-                    const totalEFT = financial[2].total;
-                    const totalBalance = financial[3].total;
-
-                    report = {
-                        title: 'Financial Summary',
-                        tables: [],
-                        summary: {
-                            'Total Sales': totalSales,
-                            'Cash Received': totalCash,
-                            'EFT Received': totalEFT,
-                            'Total Outstanding Balance': totalBalance,
-                        }
-                    };
+                    report = { title: 'Financial Summary', tables: [], summary: financialReportSummary(billsInRange, paymentsInRange, allPatients) };
                     break;
                 case 'stock_report':
                     const stockLeftData = allInventory.map(item => ({
@@ -279,7 +216,7 @@ const Reports: React.FC = () => {
 
                     const dispensedMap: { [name: string]: { name: string, quantity: number, totalValue: number } } = {};
                     billsInRange.forEach(bill => {
-                        bill.items.forEach(item => {
+                        (bill.items || []).forEach(item => {
                             const inventoryItem = allInventory.find(inv => inv.name === item.description);
                             if (inventoryItem) {
                                 if (!dispensedMap[item.description]) {
@@ -344,11 +281,11 @@ const Reports: React.FC = () => {
                     break;
                 case 'debtors':
                     const debtorsData = allPatients
-                        .filter(p => p.financials.balance > 0)
+                        .filter(p => (p.financials?.balance || 0) > 0)
                         .map(p => ({
                             ...p,
                             name: `${p.name} ${p.surname}`,
-                            balance: p.financials.balance
+                            balance: (p.financials?.balance || 0)
                         }))
                         .sort((a, b) => b.balance - a.balance);
 
@@ -374,7 +311,7 @@ const Reports: React.FC = () => {
                 case 'top_selling_items':
                     const itemMap: { [key: string]: { name: string; quantity: number; totalValue: number } } = {};
                     billsInRange.forEach(bill => {
-                        bill.items.forEach(item => {
+                        (bill.items || []).forEach(item => {
                             if (!itemMap[item.description]) {
                                 itemMap[item.description] = { name: item.description, quantity: 0, totalValue: 0 };
                             }
@@ -556,235 +493,107 @@ const Reports: React.FC = () => {
                     };
                     break;
             }
-            if(report) {
-                setGeneratedReport({ ...report, type: reportType });
+            if(report && request === generationRequest.current) {
+                setGeneratedReport({ ...report, type: reportType, period: nonDateReports.includes(reportType) ? 'All Time' : `${dateRange!.start.toLocaleDateString()} – ${dateRange!.end.toLocaleDateString()}`, generatedAt: new Date().toLocaleString() });
+                setPanelOpen(true);
             }
 
         } catch (error) {
             console.error("Error generating report:", error);
-            addNotification('Failed to generate report.', 'error');
+            if (request === generationRequest.current) {
+                const message = firestoreReadError(error).message;
+                setReportError(message);
+                addNotification(message, 'error');
+            }
         } finally {
-            setLoading(false);
-            setGeneratingReportType(null);
+            if (request === generationRequest.current) setGeneratingReportType(null);
         }
     };
     
-    const exportToCSV = () => {
-        if (!generatedReport || generatedReport.tables.every(t => t.data.length === 0)) return;
-
-        let csvBody = "";
-        generatedReport.tables.forEach(table => {
-            if (table.data.length === 0) return;
-            if (table.title) {
-                csvBody += `"${table.title}"\n`;
-            }
-            const headers = table.columns.map(c => `"${c.header.replace(/"/g, '""')}"`).join(',');
-            csvBody += `${headers}\n`;
-
-            const rows = table.data.map(row => {
-                return table.columns.map(col => {
-                    let value = row[col.accessor];
-                    
-                    if (value && typeof value === 'object' && typeof value.toDate === 'function') {
-                        value = value.toDate();
-                    }
-
-                    if (value instanceof Date) {
-                        value = value.toLocaleString();
-                    } else if ((String(col.accessor).toLowerCase().includes('date') || col.accessor === 'createdAt') && typeof value === 'string') {
-                         const d = new Date(value);
-                         if (!isNaN(d.getTime())) {
-                             value = d.toLocaleString();
-                         }
-                    }
-                    
-                    if (typeof value === 'number') {
-                         if (col.header.includes('($)')) {
-                             value = value.toFixed(2);
-                         }
-                    } else if (typeof value === 'boolean') {
-                        value = value ? 'Yes' : 'No';
-                    }
-                    
-                    return `"${String(value ?? '').replace(/"/g, '""')}"`;
-                }).join(',');
-            }).join('\n');
-            csvBody += `${rows}\n\n`;
-        });
-        
-        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(csvBody);
-        const link = document.createElement("a");
-        link.setAttribute("href", csvContent);
-        link.setAttribute("download", `${generatedReport.type}_report.csv`);
-        document.body.appendChild(link);
+    const saveFile = (blob: Blob, filename: string) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
         link.click();
-        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
-    const exportToPNG = () => {
-        if (!reportContainerRef.current) return;
-        html2canvas(reportContainerRef.current, { 
-            backgroundColor: '#ffffff',
-            scale: 2,
-            useCORS: true
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = `${generatedReport?.type}_report.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        });
-    };
-
-    const exportToWord = () => {
-        if (!generatedReport) return;
-
-        const summaryEntries = Object.entries(generatedReport.summary);
-        let summaryHtml = '';
-        if (summaryEntries.length > 0) {
-            summaryHtml = `
-                <div style="margin-top: 15px; margin-bottom: 20px;">
-                    <h3 style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Executive Summary</h3>
-                    <table style="width: 100%; border-collapse: separate; border-spacing: 10px; margin-bottom: 10px;">`;
-            for (let i = 0; i < summaryEntries.length; i += 2) {
-                const rowEntries = summaryEntries.slice(i, i + 2);
-                summaryHtml += '<tr>';
-                rowEntries.forEach(([key, val]) => {
-                    const formattedVal = typeof val === 'number'
-                        ? (String(key).includes('Value') || String(key).includes('Sales') || String(key).includes('Balance') || String(key).includes('Received') || String(key).includes('($)') || String(key).includes('Revenue'))
-                            ? `$${val.toFixed(2)}`
-                            : val.toLocaleString()
-                        : val;
-                    summaryHtml += `
-                        <td style="width: 50%; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; vertical-align: top;">
-                            <div style="font-size: 8.5pt; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">${key}</div>
-                            <div style="font-size: 18pt; font-weight: bold; color: #0f172a; margin-top: 4px;">${formattedVal}</div>
-                        </td>
-                    `;
-                });
-                if (rowEntries.length === 1) {
-                    summaryHtml += '<td style="width: 50%; border: none;"></td>';
-                }
-                summaryHtml += '</tr>';
+    const downloadReport = async (format: 'image' | 'pdf' | 'word') => {
+        if (!generatedReport || exporting) return;
+        setDownloadOpen(false);
+        setExporting(true);
+        try {
+            const logo = await loadReportLogo();
+            const pages = paginateReport(generatedReport, measureReportText);
+            const images: Uint8Array[] = [];
+            for (let index = 0; index < pages.length; index++) {
+                const canvas = await reportPageCanvas(renderReportPage(generatedReport, pages[index], index, pages.length, logo));
+                const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Image export failed')), 'image/png'));
+                images.push(new Uint8Array(await blob.arrayBuffer()));
+                canvas.width = 0; canvas.height = 0;
             }
-            summaryHtml += '</table></div>';
-        }
-
-        let tablesHtml = '';
-        generatedReport.tables.forEach(table => {
-            if (table.data.length === 0 && generatedReport.type !== 'financial_summary') return;
-            tablesHtml += `
-                <div style="margin-top: 20px; margin-bottom: 25px;">
-                    ${table.title ? `<h3 style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 8px;">${table.title}</h3>` : ''}
-                    <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
-                        <thead>
-                            <tr style="background-color: #1e293b; color: #ffffff;">
-                                ${table.columns.map(c => `<th style="padding: 10px 12px; border: 1px solid #1e293b; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 8.5pt;">${c.header}</th>`).join('')}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${table.data.map((row, rIndex) => {
-                                const bg = rIndex % 2 === 0 ? '#ffffff' : '#f8fafc';
-                                return `
-                                    <tr style="background-color: ${bg};">
-                                        ${table.columns.map(c => {
-                                            let val = row[c.accessor];
-                                            if (c.accessor === 'isLow') {
-                                                val = val ? '<span style="color: #dc2626; font-weight: bold;">Low Stock</span>' : '<span style="color: #16a34a; font-weight: bold;">OK</span>';
-                                            } else if (String(c.accessor).toLowerCase().includes('date') || c.accessor === 'createdAt') {
-                                                val = val?.toDate ? new Date(val.toDate()).toLocaleDateString() : (val ? new Date(val).toLocaleDateString() : 'N/A');
-                                            } else if (String(c.header).includes('($)')) {
-                                                val = typeof val === 'number' ? `$${val.toFixed(2)}` : val;
-                                            }
-                                            return `<td style="padding: 8px 12px; border: 1px solid #e2e8f0; color: #334155;">${val ?? ''}</td>`;
-                                        }).join('')}
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        });
-
-        const dateRangeStr = dateRange ? `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}` : 'All Time';
-        const nowStr = new Date().toLocaleString();
-
-        const sourceHTML = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-            <head>
-                <meta charset='utf-8'>
-                <title>${generatedReport.title}</title>
-                <style>
-                    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: #1e293b; margin: 20px; }
-                </style>
-            </head>
-            <body>
-                <table style="width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px;">
-                    <tr>
-                        <td style="vertical-align: top;">
-                            <div style="font-size: 18pt; font-weight: bold; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Maranatha-Sapphire</div>
-                            <div style="font-size: 9.5pt; color: #64748b; margin-top: 2px;">Masvingo, Zimbabwe • Hospital Management System</div>
-                        </td>
-                        <td style="vertical-align: top; text-align: right;">
-                            <div style="font-size: 14pt; font-weight: bold; color: #0f172a;">${generatedReport.title}</div>
-                            <div style="font-size: 8.5pt; color: #64748b; margin-top: 2px;">Range: ${dateRangeStr}</div>
-                            <div style="font-size: 8.5pt; color: #64748b; margin-top: 2px;">Generated: ${nowStr}</div>
-                        </td>
-                    </tr>
-                </table>
-
-                ${summaryHtml}
-                ${tablesHtml}
-
-                <div style="margin-top: 30px; font-size: 8.5pt; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-                    Confidential Report • Generated by Maranatha-Sapphire Management System
-                </div>
-            </body>
-            </html>
-        `;
-
-        const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
-        const fileDownload = document.createElement("a");
-        document.body.appendChild(fileDownload);
-        fileDownload.href = source;
-        fileDownload.download = `${generatedReport.type}_report.doc`;
-        fileDownload.click();
-        document.body.removeChild(fileDownload);
+            if (format === 'image') {
+                if (images.length === 1) saveFile(new Blob([new Uint8Array(images[0])], { type: 'image/png' }), `${generatedReport.type}_report.png`);
+                else {
+                    const { zipSync } = await import('fflate');
+                    const files: Record<string, Uint8Array> = {};
+                    for (let index = 0; index < images.length; index++) files[`page-${String(index + 1).padStart(3, '0')}.png`] = images[index];
+                    const zip = zipSync(files, { level: 0 });
+                    saveFile(new Blob([new Uint8Array(zip)], { type: 'application/zip' }), `${generatedReport.type}_report_images.zip`);
+                }
+            } else if (format === 'pdf') {
+                const { jsPDF } = await import('jspdf');
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                pdf.setProperties({ title: generatedReport.title, author: 'Maranatha-Sapphire Hospital' });
+                images.forEach((image, index) => {
+                    if (index) pdf.addPage('a4', 'portrait');
+                    // Keep the exact page artwork while retaining searchable report text.
+                    const svg = new DOMParser().parseFromString(renderReportPage(generatedReport, pages[index], index, pages.length, logo), 'image/svg+xml');
+                    svg.querySelectorAll('text').forEach(text => {
+                        const x = Number(text.getAttribute('x')) * 210 / A4_WIDTH;
+                        const y = Number(text.getAttribute('y')) * 297 / A4_HEIGHT;
+                        pdf.setFont('helvetica', text.getAttribute('font-weight') === '700' ? 'bold' : 'normal');
+                        pdf.setFontSize(Number(text.getAttribute('font-size')) * 0.75);
+                        pdf.text(text.textContent || '', x, y, { renderingMode: 'invisible', align: text.getAttribute('text-anchor') === 'end' ? 'right' : 'left' });
+                    });
+                    pdf.addImage(image, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+                });
+                pdf.save(`${generatedReport.type}_report.pdf`);
+            } else {
+                const { Document, Packer, Paragraph, ImageRun, SectionType } = await import('docx');
+                const sections = await Promise.all(images.map(image => ({
+                    properties: {
+                        type: SectionType.NEXT_PAGE,
+                        page: { size: { width: 11906, height: 16838 }, margin: { top: 0, bottom: 0, left: 0, right: 0, header: 0, footer: 0 } },
+                    },
+                    children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new ImageRun({
+                        type: 'png', data: image,
+                        transformation: { width: A4_WIDTH - 0.3, height: A4_HEIGHT - 0.5 },
+                        floating: { horizontalPosition: { relative: 'page', offset: 0 }, verticalPosition: { relative: 'page', offset: 0 }, behindDocument: false },
+                    })] })],
+                })));
+                saveFile(await Packer.toBlob(new Document({ sections })), `${generatedReport.type}_report.docx`);
+            }
+        } catch (error) {
+            console.error('Report export failed:', error);
+            addNotification('Could not download the report. Please try again.', 'error');
+        } finally { setExporting(false); }
     };
 
-    const exportToPDF = () => {
-        window.print();
-    };
-    
     const getButtonText = (key: ReportType) => {
         if (generatingReportType === key) return 'Generating...';
         return 'Generate Report';
     }
 
-    const formatCurrency = (value: any) => typeof value === 'number' ? `$${value.toFixed(2)}` : value;
     
-    const getSummaryIconSafe = (key: string) => {
-        const iconProps: any = { size: 28, className: "text-white" };
-        const containerClass = "p-3 rounded-lg shrink-0";
-        switch (key) {
-            case 'Total Sales': return <div className={`bg-blue-600 ${containerClass}`}><DollarSign {...iconProps} /></div>;
-            case 'Cash Received': return <div className={`bg-emerald-600 ${containerClass}`}><Banknote {...iconProps} /></div>;
-            case 'EFT Received': return <div className={`bg-indigo-600 ${containerClass}`}><CreditCard {...iconProps} /></div>;
-            case 'Total Outstanding Balance': return <div className={`bg-rose-600 ${containerClass}`}><AlertTriangle {...iconProps} /></div>;
-            case 'Total Registered Patients': return <div className={`bg-blue-600 ${containerClass}`}><Users {...iconProps} /></div>;
-            case 'Currently Admitted': return <div className={`bg-purple-600 ${containerClass}`}><BedDouble {...iconProps} /></div>;
-            case 'Pending Discharge': return <div className={`bg-amber-600 ${containerClass}`}><LogOut {...iconProps} /></div>;
-            case 'Total Discharged': return <div className={`bg-emerald-600 ${containerClass}`}><UserCheck {...iconProps} /></div>;
-            case 'Stock Received (Units)': return <div className={`bg-sky-600 ${containerClass}`}><ArrowDown {...iconProps} /></div>;
-            case 'Stock Sold (Units)': return <div className={`bg-orange-600 ${containerClass}`}><ArrowUp {...iconProps} /></div>;
-            case 'Revenue from Stock ($)': return <div className={`bg-teal-600 ${containerClass}`}><DollarSign {...iconProps} /></div>;
-            default: return <div className={`bg-slate-600 ${containerClass}`}><BarChartIcon {...iconProps} /></div>;
-        }
-    }
 
     return (
         <div>
-            <h1 className="text-3xl font-bold text-white mb-6">Reports</h1>
+            <h1 className="text-3xl font-bold text-white mb-6 no-print">Reports</h1>
+            {reportError && <div role="alert" className="mb-4 rounded-lg border border-red-800 bg-red-950/40 p-4 text-red-200 no-print">{reportError}</div>}
+            <div className={`reports-workspace ${panelOpen ? 'reports-workspace-open' : ''}`}>
+            <section ref={browserRef} className="reports-browser no-print">
             
             <div className="bg-[#161B22] border border-gray-700 p-6 rounded-lg shadow-md mb-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
@@ -813,12 +622,11 @@ const Reports: React.FC = () => {
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {reportTypesConfig.map((report, index) => (
+            <div className="reports-cards">
+                {reportTypesConfig.map((report) => (
                     <div 
                         key={report.key} 
-                        className="report-card-animate bg-[#161B22] border border-gray-700 p-6 rounded-lg shadow-md flex flex-col justify-between"
-                        style={{ animationDelay: `${index * 80}ms` }}
+                        className="report-card bg-[#161B22] border border-gray-700 p-6 rounded-lg shadow-md flex flex-col justify-between"
                     >
                         <div>
                             <div className="flex items-start gap-4">
@@ -828,7 +636,7 @@ const Reports: React.FC = () => {
                                     <p className="text-sm text-gray-400 mt-1">{report.description}</p>
                                 </div>
                             </div>
-                            <div className="my-4 h-[160px] flex items-center justify-center">
+                            <div className="my-4 min-h-[160px] flex items-center justify-center">
                                 {previewLoading ? (
                                     <div className="animate-pulse w-full px-2">
                                       <div className="h-4 bg-gray-700 rounded w-3/4 mb-4"></div>
@@ -840,116 +648,54 @@ const Reports: React.FC = () => {
                                     <ReportPreview
                                         reportKey={report.key}
                                         data={previewData[report.key]}
+                                        onRetry={() => setPreviewReload(value => value + 1)}
+
                                     />
-                                    {previewData[report.key]?.deferred && <button onClick={() => setDetailedPreviews(previous => [...previous, report.key])} className="mt-3 w-full text-sm text-sky-400 hover:underline">Load Preview</button>}
                                     </div>
                                 )}
                             </div>
                         </div>
                         <button 
                             onClick={() => handleGenerateReport(report.key)} 
-                            disabled={loading} 
-                            className="mt-6 w-full inline-flex items-center justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
+                            disabled={generatingReportType === report.key}
+                            aria-busy={generatingReportType === report.key}
+                            className="mt-6 w-full inline-flex items-center justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 disabled:cursor-wait"
                         >
+                            {generatingReportType === report.key && <Loader2 size={18} className="mr-2 animate-spin" aria-hidden="true" />}
                             {getButtonText(report.key)}
                         </button>
                     </div>
                 ))}
             </div>
 
-            {loading && !generatingReportType && <PageSkeleton type="table" />}
+            </section>
+            <aside ref={element => element?.toggleAttribute('inert', !panelOpen)} className="reports-panel" aria-hidden={!panelOpen} aria-label="Generated report">
             
             {generatedReport && (
-                <div className="mt-8 bg-[#161B22] border border-gray-700 p-6 rounded-lg shadow-md">
-                    <div ref={reportContainerRef} className="report-container bg-white text-slate-800 p-8 rounded-xl shadow-lg border border-slate-200">
-                        {/* Report Header */}
-                        <div className="flex flex-col sm:flex-row justify-between items-start pb-6 border-b-2 border-slate-900 gap-4">
-                             <div className="flex items-center gap-4">
-                                <img src="/maranathalogo.png" alt="Logo" className="h-16 w-16 rounded-xl object-contain border border-slate-200 p-1 shadow-sm" />
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">MARANATHA-SAPPHIRE</h2>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Masvingo, Zimbabwe • Hospital System</p>
-                                </div>
+                <div className="reports-panel-inner bg-[#161B22] border border-gray-700 rounded-lg shadow-md">
+                    <div className="report-toolbar text-gray-200 flex items-center justify-between gap-3 p-3 border-b border-gray-700 no-print">
+                        <h2 className="text-sm font-semibold text-white truncate">{generatedReport.title}</h2>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <div className="relative" ref={downloadMenuRef}>
+                                <button type="button" onClick={() => setDownloadOpen(value => !value)} disabled={exporting} aria-expanded={downloadOpen} aria-controls="report-download-options" className="flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm text-white hover:bg-sky-500 disabled:opacity-50"><Download size={16} />{exporting ? 'Downloading…' : 'Download'}<ChevronDown size={14} /></button>
+                                {downloadOpen && <div id="report-download-options" className="absolute right-0 top-full z-20 mt-2 w-48 rounded-lg border border-gray-600 bg-gray-800 p-1 shadow-xl">
+                                    <button onClick={() => downloadReport('image')} className="flex w-full items-center gap-2 rounded p-3 text-sm hover:bg-gray-700"><ImageIcon size={16} /> Image (PNG)</button>
+                                    <button onClick={() => downloadReport('pdf')} className="flex w-full items-center gap-2 rounded p-3 text-sm hover:bg-gray-700"><FileText size={16} /> PDF</button>
+                                    <button onClick={() => downloadReport('word')} className="flex w-full items-center gap-2 rounded p-3 text-sm hover:bg-gray-700"><FileText size={16} /> Word Document</button>
+                                </div>}
                             </div>
-                            <div className="text-left sm:text-right">
-                                <h3 className="text-xl font-bold text-slate-800">{generatedReport.title}</h3>
-                                <p className="text-xs font-medium text-slate-500 mt-1">Date Range: {dateRange ? `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}` : 'All Time'}</p>
-                                <p className="text-xs text-slate-400">Generated: {new Date().toLocaleString()}</p>
-                            </div>
+                            <button onClick={() => window.print()} className="flex items-center gap-2 rounded-lg bg-gray-700 px-3 py-2 text-sm hover:bg-gray-600"><Printer size={16} /> Print</button>
+                            <button onClick={() => { setPanelOpen(false); setDownloadOpen(false); }} aria-label="Close report" className="rounded-lg p-2 hover:bg-gray-700"><X size={18} /></button>
                         </div>
-
-                        {/* Summary Cards */}
-                        {Object.keys(generatedReport.summary).length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-6">
-                                {Object.entries(generatedReport.summary).map(([key, value]) => (
-                                    <div key={key} className="summary-card flex items-center gap-4 p-4 border border-slate-200 rounded-xl bg-slate-50/80 shadow-sm">
-                                        {getSummaryIconSafe(key)}
-                                        <div>
-                                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{key}</p>
-                                            <p className="text-2xl font-bold text-slate-900 mt-1">
-                                                {typeof value === 'number'
-                                                    ? (String(key).includes('Value') || String(key).includes('Sales') || String(key).includes('Balance') || String(key).includes('Received') || String(key).includes('($)') || String(key).includes('Revenue'))
-                                                        ? formatCurrency(value)
-                                                        : value.toLocaleString()
-                                                    : value}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Data Tables */}
-                        {generatedReport.tables.map((table, tableIndex) => (
-                           (table.data.length > 0 || generatedReport.type === 'financial_summary') && (
-                            <div key={tableIndex} className="overflow-x-auto mt-8">
-                                {table.title && <h3 className="text-md font-bold mb-3 text-slate-800 border-b border-slate-200 pb-2">{table.title}</h3>}
-                                {table.data.length > 0 && (
-                                <table className="w-full text-sm text-left text-slate-600 border border-slate-200 rounded-lg overflow-hidden">
-                                    <thead className="text-xs text-white uppercase bg-slate-800">
-                                        <tr>
-                                            {table.columns.map(col => <th key={col.accessor} className="px-4 py-3 font-semibold tracking-wider">{col.header}</th>)}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {table.data.map((row, index) => (
-                                            <tr key={index} className="hover:bg-slate-100 odd:bg-white even:bg-slate-50 transition-colors">
-                                                {table.columns.map(col => (
-                                                    <td key={col.accessor} className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
-                                                        {(() => {
-                                                            let cellValue = row[col.accessor];
-                                                            if (col.accessor === 'isLow') {
-                                                                return cellValue ? <span className="font-bold text-red-600">Low Stock</span> : <span className="font-medium text-emerald-600">OK</span>;
-                                                            }
-                                                            if (String(col.accessor).toLowerCase().includes('date') || col.accessor === 'createdAt') {
-                                                                return cellValue?.toDate ? new Date(cellValue.toDate()).toLocaleDateString() : (cellValue ? new Date(cellValue).toLocaleDateString() : 'N/A');
-                                                            }
-                                                            if (String(col.header).includes('($)')) {
-                                                                return formatCurrency(cellValue);
-                                                            }
-                                                            return cellValue;
-                                                        })()}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                )}
-                            </div>
-                           )
-                        ))}
                     </div>
+                    <div className="report-document-scroll p-3">
+                    <ReportDocument report={generatedReport} />
 
-                    <div className="flex flex-wrap items-center gap-3 pt-4 mt-6 border-t border-gray-700 no-print">
-                        <h3 className="text-md font-semibold text-white mr-2">Export Report:</h3>
-                        <button onClick={exportToCSV} disabled={generatedReport.tables.every(t => t.data.length === 0)} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-emerald-800 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"><FileSpreadsheet size={16}/> CSV</button>
-                        <button onClick={exportToPNG} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-blue-800 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm"><ImageIcon size={16}/> PNG</button>
-                        <button onClick={exportToWord} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-sky-800 text-white rounded-lg hover:bg-sky-700 font-medium shadow-sm"><FileText size={16}/> Word Document</button>
-                        <button onClick={exportToPDF} className="flex items-center gap-2 px-3.5 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium shadow-sm"><Printer size={16}/> Print / PDF</button>
                     </div>
                 </div>
             )}
+            </aside>
+            </div>
         </div>
     );
 };

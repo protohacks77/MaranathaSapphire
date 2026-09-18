@@ -1,3 +1,6 @@
+import { useOfflineView } from '../../services/useOfflineView';
+import { loadPatientUserActivities } from '../../services/patientUserActivity';
+import './UserActivityModal.css';
 import { usePagedQuery } from '../../services/usePagedQuery';
 import LoadMore from '../../components/utils/LoadMore';
 import { cachedRead } from '../../services/readCache';
@@ -18,11 +21,16 @@ interface UserActivityModalProps {
 
 const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, user }) => {
     const [activities, setActivities] = useState<UserActivity[]>([]);
-    const [filter, setFilter] = useState<'day' | 'week' | 'month' | 'custom'>('week');
+    const [filter, setFilter] = useState<'all' | 'day' | 'week' | 'month' | 'custom'>('all');
     const [customStart, setCustomStart] = useState('');
     const [customEnd, setCustomEnd] = useState('');
+    const { data: clinicalView, loading: clinicalLoading, error: clinicalError, refresh: reloadClinical } = useOfflineView(
+        `user-clinical-activity:${user.id}`, () => loadPatientUserActivities(user.id), 60_000, isOpen,
+    );
+    const clinical = useMemo(() => ({ activities: clinicalView?.activities || [], loading: clinicalLoading, error: clinicalView?.error || clinicalError }), [clinicalView, clinicalLoading, clinicalError]);
 
     const dateRange = useMemo(() => {
+        if (filter === 'all') return null;
         let end = new Date();
         end.setHours(23, 59, 59, 999);
         let start = new Date();
@@ -39,8 +47,9 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                 break;
             case 'custom':
                 if (!customStart || !customEnd) return null;
-                start = new Date(customStart);
-                end = new Date(customEnd);
+                start = new Date(`${customStart}T00:00:00`);
+                end = new Date(`${customEnd}T00:00:00`);
+                if (start > end) return null;
                 end.setHours(23, 59, 59, 999);
                 break;
             default:
@@ -58,23 +67,24 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
     const paymentsPage = usePagedQuery<Payment>(paymentsQuery, `activity-payments:${user.id}`, isOpen);
     const registrationsPage = usePagedQuery<Patient>(registrationsQuery, `activity-patients:${user.id}`, isOpen);
 
-    const loading = billsPage.loading || paymentsPage.loading || registrationsPage.loading;
+    const loading = billsPage.loading || paymentsPage.loading || registrationsPage.loading || clinical.loading;
     const pages = [billsPage, paymentsPage, registrationsPage];
     const hasMore = pages.some(page => page.hasMore);
     const loadingMore = pages.some(page => page.loadingMore);
     const indexUrl = pages.map(page => page.indexUrl).find(Boolean);
-    const error = pages.map(page => page.error).find(Boolean);
+    const error = clinical.error || pages.map(page => page.error).find(Boolean);
     const loadMore = () => { pages.filter(page => page.hasMore).forEach(page => page.loadMore()); };
-    const refresh = () => { pages.forEach(page => page.refresh()); };
+    const refresh = () => { pages.forEach(page => page.refresh()); reloadClinical(); };
 
     useEffect(() => {
+        let cancelled = false;
         if (!isOpen || !user) {
             setActivities([]);
             return;
         }
 
         const processActivities = async () => {
-            const allActivities: UserActivity[] = [];
+            const allActivities: UserActivity[] = clinical.activities.map(activity => ({ ...activity }));
 
             try {
                 // Bills
@@ -112,15 +122,16 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                     type: 'Payment' as const,
                     date: new Date(payment.date),
                     patientId: payment.patientId,
-                    patientName: 'Loading...',
+                    patientName: 'Unknown Patient',
                     details: `Recorded payment of $${(payment.amount || 0).toFixed(2)}`,
                     link: `/patients/${payment.patientId}`,
                 }));
 
-                const patientIdsForPayments = [...new Set(paymentActivities.map(p => p.patientId))].filter(Boolean);
+                const patientIdsForPayments = [...new Set([...paymentActivities.map(p => p.patientId), ...clinical.activities.filter(activity => activity.patientName === 'Patient').map(activity => activity.patientId)])].filter(Boolean);
                 if (patientIdsForPayments.length > 0) {
                     const patientsSnapshot = await cachedRead(`activity-patient-names:${patientIdsForPayments.join(',')}`, async () => {
-                        const docs = await Promise.all(patientIdsForPayments.map(id => cachedRead(`patient-name:${id}`, () => db.collection('patients').doc(id).get(), 300_000)));
+                        const results = await Promise.allSettled(patientIdsForPayments.map(id => cachedRead(`patient-name:${id}`, () => db.collection('patients').doc(id).get(), 300_000)));
+                        const docs = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
                         return { forEach: (visit: (doc: firebase.firestore.DocumentSnapshot) => void) => docs.filter(doc => doc.exists).forEach(visit) };
                     });
                     const patientNameMap = new Map<string, string>();
@@ -128,21 +139,22 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                         const p = doc.data() as Patient;
                         patientNameMap.set(doc.id, `${p.name} ${p.surname}`);
                     });
-                    paymentActivities.forEach(act => {
-                        act.patientName = patientNameMap.get(act.patientId) || 'Unknown Patient';
+                    paymentActivities.forEach(act => { act.patientName = patientNameMap.get(act.patientId) || 'Unknown Patient'; });
+                    allActivities.forEach(act => {
+                        if (act.patientName === 'Patient') act.patientName = patientNameMap.get(act.patientId) || 'Unknown Patient';
                     });
                 }
                 allActivities.push(...paymentActivities);
 
                 // Client-side date range filtering
-                let filtered = allActivities;
+                let filtered = filter === 'custom' && !dateRange ? [] : allActivities;
                 if (dateRange) {
                     filtered = allActivities.filter(activity => {
                         return activity.date >= dateRange.start && activity.date <= dateRange.end;
                     });
                 }
-                filtered.sort((a, b) => b.date.getTime() - a.date.getTime());
-                setActivities(filtered);
+                filtered.sort((a, b) => (b.date.getTime() || 0) - (a.date.getTime() || 0));
+                if (!cancelled) setActivities(filtered);
 
             } catch (err) {
                 console.error("Error processing user activity:", err);
@@ -150,7 +162,8 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
         };
 
         processActivities();
-    }, [isOpen, user.id, dateRange, billsPage.records, paymentsPage.records, registrationsPage.records]);
+        return () => { cancelled = true; };
+    }, [isOpen, user.id, dateRange, filter, billsPage.records, paymentsPage.records, registrationsPage.records, clinical.activities]);
 
     const ActivityBadgeIcon: React.FC<{ type: UserActivity['type'] }> = ({ type }) => {
         switch (type) {
@@ -196,7 +209,7 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                         </div>
                     </div>
                     <div className="text-right">
-                        <p className="text-xs text-gray-400">Activities Recorded</p>
+                        <p className="text-xs text-gray-400">Activities Shown</p>
                         <p className="text-xl font-bold text-sky-400">{activities.length}</p>
                     </div>
                 </div>
@@ -204,7 +217,7 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                 {/* Filter Tabs */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex bg-gray-800/80 p-1 rounded-lg border border-gray-700">
-                        {(['day', 'week', 'month', 'custom'] as const).map(fKey => (
+                        {(['all', 'day', 'week', 'month', 'custom'] as const).map(fKey => (
                             <button
                                 key={fKey}
                                 onClick={() => setFilter(fKey)}
@@ -214,7 +227,7 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                                         : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
                                 }`}
                             >
-                                {fKey === 'day' ? 'Today' : fKey === 'week' ? 'This Week' : fKey === 'month' ? 'This Month' : 'Custom'}
+                                {fKey === 'all' ? 'All Time' : fKey === 'day' ? 'Today' : fKey === 'week' ? 'This Week' : fKey === 'month' ? 'This Month' : 'Custom'}
                             </button>
                         ))}
                     </div>
@@ -244,7 +257,7 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                 )}
 
                 {/* Activity Timeline */}
-                <div className="max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
+                <div className="max-h-[380px] overflow-y-auto user-activity-scrollbar pr-1">
                     {loading ? (
                         <ModalSkeleton items={4} />
                     ) : activities.length > 0 ? (
@@ -262,13 +275,13 @@ const UserActivityModal: React.FC<UserActivityModalProps> = ({ isOpen, onClose, 
                                             <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
                                                 activity.type === 'Registration' ? 'bg-purple-900/30 text-purple-400 border border-purple-800/50' :
                                                 activity.type === 'Billing' ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' :
-                                                'bg-green-900/30 text-green-400 border border-green-800/50'
+                                                activity.type === 'Payment' ? 'bg-green-900/30 text-green-400 border border-green-800/50' : 'bg-cyan-900/30 text-cyan-400 border border-cyan-800/50'
                                             }`}>
                                                 {activity.type}
                                             </span>
                                             <span className="text-xs text-gray-400 flex items-center gap-1 font-mono">
                                                 <Clock size={12} className="text-gray-500" />
-                                                {activity.date.toLocaleString()}
+                                                {Number.isFinite(activity.date.getTime()) ? activity.date.toLocaleString() : 'Timestamp unavailable'}
                                             </span>
                                         </div>
 

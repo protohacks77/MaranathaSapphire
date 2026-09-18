@@ -2,6 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './index.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,16 +16,12 @@ root.render(
   </React.StrictMode>
 );
 
-// Register Service Worker
-if ('serviceWorker' in navigator) {
+// Production assets are precached by the generated service worker. Keep Vite's
+// development modules out of the offline cache.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(
-      (registration) => {
-        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-      },
-      (err) => {
-        console.log('ServiceWorker registration failed: ', err);
-      }
-    );
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(registration => {
+      void registration.update();
+    }).catch(error => console.warn('Offline app installation failed:', error));
   });
 }

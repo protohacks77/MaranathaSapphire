@@ -1,0 +1,21 @@
+.user-activity-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #475569 transparent;
+}
+
+.user-activity-scrollbar::-webkit-scrollbar {
+    width: 5px;
+}
+
+.user-activity-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.user-activity-scrollbar::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 999px;
+}
+
+.user-activity-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}

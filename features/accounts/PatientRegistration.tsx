@@ -1,3 +1,4 @@
+import { useDeviceDraft } from '../../services/useDeviceDraft';
 import { patientSearchFields } from '../../services/patientSearch';
 import { invalidateReads } from '../../services/readCache';
 import React, { useState, useMemo, useEffect } from 'react';
@@ -102,7 +103,7 @@ const PatientRegistration: React.FC = () => {
         phoneCountryCode: '+263', phoneNumber: '', residentialAddress: '', 
         nokName: '', nokSurname: '', nokPhoneNumber: '', nokAddress: ''
     };
-    const [formData, setFormData] = useState(initialFormState);
+    const [formData, setFormData] = useDeviceDraft('patient-registration', initialFormState);
 
     const age = useMemo(() => {
         if (!formData.dateOfBirth) return 0;
@@ -142,6 +143,10 @@ const PatientRegistration: React.FC = () => {
     };
     
     const generateHospitalNumber = async (): Promise<string> => {
+        if (!navigator.onLine) {
+            addNotification('Offline registration: using a unique device ID.', 'info');
+            return `OFF-${crypto.randomUUID()}`;
+        }
         const counterRef = db.collection('counters').doc('patients');
         try {
             return await db.runTransaction(async (transaction) => {
@@ -158,7 +163,7 @@ const PatientRegistration: React.FC = () => {
             });
         } catch (error) {
             console.warn("Transaction failed (likely offline). Generating Offline ID.");
-            const offlineId = `OFF-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+            const offlineId = `OFF-${crypto.randomUUID()}`;
             addNotification("Offline Mode: Generated temporary Hospital ID. Please update later if needed.", "warning");
             return offlineId;
         }

@@ -44,7 +44,7 @@ const seedUsers = async () => {
   
   let usersSnapshot;
   try {
-    usersSnapshot = await usersCollection.get();
+    usersSnapshot = await usersCollection.get({ source: 'server' });
   } catch (err) {
     console.warn("Could not query users collection, may not be initialized yet:", err);
     return;
@@ -226,6 +226,7 @@ const seedInventory = async () => {
 
 
 export const seedDatabase = async () => {
+  if (!navigator.onLine) return;
   console.log("--- Setting up Admin User ---");
   await seedUsers();
   console.log("--- Admin User Setup Finished ---");

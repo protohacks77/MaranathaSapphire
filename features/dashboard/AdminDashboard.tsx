@@ -1,3 +1,4 @@
+import { useOfflineView } from '../../services/useOfflineView';
 import { dashboardCounts } from '../../services/lowReadQueries';
 import { cachedRead } from '../../services/readCache';
 import { usePagedQuery } from '../../services/usePagedQuery';
@@ -115,7 +116,7 @@ const AdminDashboard: React.FC = () => {
     pendingDischarge: 0,
     recentNotifications: []
   });
-  const [loading, setLoading] = useState(true);
+
   const [backupLoading, setBackupLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
@@ -130,29 +131,17 @@ const AdminDashboard: React.FC = () => {
       return query.orderBy('name');
   }, [searchTerm]);
   const userPage = usePagedQuery<UserProfile>(usersQuery, `users:${searchTerm}`);
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const fetchStats = async () => {
-      setLoading(true);
-      try {
-        const [counts, notifSnap] = await Promise.all([
-          dashboardCounts(),
-          cachedRead(`notifications:recent:${currentUser.uid}`, () => db.collection('notifications').where('recipientId', '==', currentUser.uid).orderBy('createdAt', 'desc').limit(5).get()),
-        ]);
-        setStats({ totalUsers: counts.totalUsers, allUsers: [], admittedPatientsCount: counts.admitted,
-          allPatients: [], pendingDischarge: counts.pendingDischarge,
-          recentNotifications: notifSnap.docs.map(doc => ({ ...doc.data(), id: doc.id })),
-        });
-      } catch (error) {
-        console.error("Error fetching admin stats:", error);
-      } finally {
-        setLoading(false);
-      }
+  const { data: cachedStats, loading } = useOfflineView<AdminStats>(`admin-dashboard:${currentUser?.uid}`, async () => {
+    const [counts, notifications] = await Promise.all([
+      dashboardCounts(),
+      db.collection('notifications').where('recipientId', '==', currentUser!.uid).orderBy('createdAt', 'desc').limit(5).get(),
+    ]);
+    return { totalUsers: counts.totalUsers, allUsers: [], admittedPatientsCount: counts.admitted,
+      allPatients: [], pendingDischarge: counts.pendingDischarge,
+      recentNotifications: notifications.docs.map(doc => ({ ...doc.data(), id: doc.id })),
     };
-
-    fetchStats();
-  }, [currentUser]);
+  });
+  useEffect(() => { if (cachedStats) setStats(cachedStats); }, [cachedStats]);
 
   const filteredData = userPage.records;
 
