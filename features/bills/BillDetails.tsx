@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
 import { Bill } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import { useNotification } from '../../context/NotificationContext';
 import { Printer, ArrowLeft } from 'lucide-react';
 import ReceiptPreviewModal from './ReceiptPreviewModal';
@@ -111,7 +111,7 @@ const BillDetails: React.FC = () => {
     }
   }
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <PageSkeleton type="form" />;
   if (!bill) return null;
 
   return (

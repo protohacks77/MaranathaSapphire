@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../../services/firebase';
 import { Ward, Patient } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import { Edit, Plus, Search, Trash2, BedDouble, AlertTriangle, DollarSign } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import Modal from '../../components/utils/Modal';
@@ -170,7 +170,7 @@ const WardManagement: React.FC = () => {
         }
     }
 
-    if (loading) return <LoadingSpinner />;
+    if (loading) return <PageSkeleton type="table" />;
 
     return (
         <div>

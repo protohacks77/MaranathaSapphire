@@ -5,7 +5,7 @@ import firebase from 'firebase/compat/app';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../../services/firebase';
 import { InventoryItem, Role, InventoryLog, BillItem, Bill } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton, { ModalSkeleton } from '../../components/utils/SkeletonLoader';
 import { Edit, Plus, Search, Trash2, Pill, AlertTriangle, Package, DollarSign, History, BarChart, X } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import Modal from '../../components/utils/Modal';
@@ -35,7 +35,7 @@ const StockHistoryModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
             </div>
             
             <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
-                {loading ? <LoadingSpinner /> : (
+                {loading ? <ModalSkeleton items={5} /> : (
                     activeTab === 'logs' ? (
                         <table className="w-full text-sm text-left text-gray-400">
                             <thead className="text-xs text-gray-400 uppercase bg-gray-700 sticky top-0">
@@ -157,7 +157,7 @@ const InventoryManagement: React.FC = () => {
         }
     }
 
-    if (loading && !items.length) return <LoadingSpinner />;
+    if (loading && !items.length) return <PageSkeleton type="table" />;
 
     return (
         <div>

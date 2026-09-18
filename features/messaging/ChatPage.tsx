@@ -6,7 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { ChatConversation, UserProfile, Role } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import ConversationList from './ConversationList';
 import ChatWindow from './ChatWindow';
 import { getOrCreateChat } from '../../services/chatService';
@@ -49,7 +49,7 @@ const ChatPage: React.FC = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <PageSkeleton type="cards" />;
   }
 
   return (

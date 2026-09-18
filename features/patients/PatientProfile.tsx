@@ -1403,23 +1403,27 @@ const PatientProfile: React.FC = () => {
                 <p>Generated on: ${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Harare' })}</p>
             </div>
 
-            <div class="section two-col">
-                <div class="col">
-                    <h2>Patient Demographics</h2>
-                    <p><strong>Name:</strong> ${patient.name} ${patient.surname}</p>
-                    <p><strong>Hospital No:</strong> ${patient.hospitalNumber}</p>
-                    <p><strong>DOB:</strong> ${patient.dateOfBirth} (Age: ${patient.age})</p>
-                    <p><strong>Gender:</strong> ${patient.gender}</p>
-                    <p><strong>ID/Passport:</strong> ${patient.nationalId || patient.passportNumber || 'N/A'}</p>
-                    <p><strong>Status:</strong> ${patient.status}</p>
-                </div>
-                <div class="col">
-                    <h2>Contact & NOK</h2>
-                    <p><strong>Phone:</strong> ${patient.phoneNumber}</p>
-                    <p><strong>Address:</strong> ${patient.residentialAddress}</p>
-                    <p><strong>NOK Name:</strong> ${patient.nokName} ${patient.nokSurname}</p>
-                    <p><strong>NOK Phone:</strong> ${patient.nokPhoneNumber}</p>
-                </div>
+            <div class="section">
+                <table style="width: 100%; border: none; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; border: none; padding-right: 15px;">
+                            <h2 style="margin-top: 0;">Patient Demographics</h2>
+                            <p><strong>Name:</strong> ${patient.name} ${patient.surname}</p>
+                            <p><strong>Hospital No:</strong> ${patient.hospitalNumber}</p>
+                            <p><strong>DOB:</strong> ${patient.dateOfBirth} (Age: ${patient.age})</p>
+                            <p><strong>Gender:</strong> ${patient.gender}</p>
+                            <p><strong>ID/Passport:</strong> ${patient.nationalId || patient.passportNumber || 'N/A'}</p>
+                            <p><strong>Status:</strong> ${patient.status}</p>
+                        </td>
+                        <td style="width: 50%; vertical-align: top; border: none; padding-left: 15px;">
+                            <h2 style="margin-top: 0;">Contact & NOK</h2>
+                            <p><strong>Phone:</strong> ${patient.phoneNumber}</p>
+                            <p><strong>Address:</strong> ${patient.residentialAddress}</p>
+                            <p><strong>NOK Name:</strong> ${patient.nokName} ${patient.nokSurname}</p>
+                            <p><strong>NOK Phone:</strong> ${patient.nokPhoneNumber}</p>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <div class="section">
@@ -1452,11 +1456,22 @@ const PatientProfile: React.FC = () => {
             
             <div class="section">
                 <h2>Financial Details</h2>
-                <div class="two-col" style="margin-bottom: 20px;">
-                     <div class="col"><p><strong>Total Bill:</strong> <span class="amount">$${patient.financials.totalBill.toFixed(2)}</span></p></div>
-                     <div class="col"><p><strong>Total Paid:</strong> <span class="amount">$${patient.financials.amountPaid.toFixed(2)}</span></p></div>
-                     <div class="col"><p><strong>Balance Due:</strong> <span class="amount">$${patient.financials.balance.toFixed(2)}</span></p></div>
-                </div>
+                <table style="width: 100%; border-collapse: separate; border-spacing: 10px; margin-bottom: 20px;">
+                    <tr>
+                        <td style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 6px;">
+                            <p style="font-size: 8pt; color: #64748b; text-transform: uppercase;">Total Bill</p>
+                            <p style="font-size: 14pt; font-weight: bold; color: #0f172a;">$${patient.financials.totalBill.toFixed(2)}</p>
+                        </td>
+                        <td style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 6px;">
+                            <p style="font-size: 8pt; color: #64748b; text-transform: uppercase;">Total Paid</p>
+                            <p style="font-size: 14pt; font-weight: bold; color: #16a34a;">$${patient.financials.amountPaid.toFixed(2)}</p>
+                        </td>
+                        <td style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 6px;">
+                            <p style="font-size: 8pt; color: #64748b; text-transform: uppercase;">Balance Due</p>
+                            <p style="font-size: 14pt; font-weight: bold; color: ${patient.financials.balance > 0 ? '#dc2626' : '#16a34a'};">$${patient.financials.balance.toFixed(2)}</p>
+                        </td>
+                    </tr>
+                </table>
 
                 <h3>Detailed Billing History</h3>
                 ${bills.length > 0 ? `

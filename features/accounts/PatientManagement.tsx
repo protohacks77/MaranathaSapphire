@@ -4,7 +4,7 @@ import firebase from 'firebase/compat/app';
 import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../../services/firebase';
 import { Patient } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import { Search, FileText, User, Calendar, Hash, Bed, LayoutGrid, Table as TableIcon, Filter, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useNotification } from '../../context/NotificationContext';
@@ -51,7 +51,7 @@ const PatientManagement: React.FC = () => {
     });
   }, [searchQuery, minAge, maxAge, statusFilter, patients]);
 
-  if (loading && !patients.length) return <LoadingSpinner />;
+  if (loading && !patients.length) return <PageSkeleton type="cards" />;
 
   return (
     <div className="space-y-6">

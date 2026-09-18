@@ -2,7 +2,7 @@ import { cachedRead } from '../../services/readCache';
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../services/firebase';
 import { Bill, Patient, UserProfile, PriceListItem } from '../../types';
-import LoadingSpinner from '../../components/utils/LoadingSpinner';
+import PageSkeleton from '../../components/utils/SkeletonLoader';
 import { DollarSign, UserPlus, FileText, BarChart2, Users, Briefcase } from 'lucide-react';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
@@ -147,7 +147,7 @@ const AnalyticsDashboard: React.FC = () => {
     }, [filteredData, allData, dateRange]);
 
 
-    if (loading) return <LoadingSpinner />;
+    if (loading) return <PageSkeleton type="dashboard" />;
 
     const KpiCard = ({ title, value, icon }: { title: string, value: string, icon: React.ReactNode }) => (
         <div className="bg-[#161B22] border border-gray-700 p-6 rounded-xl shadow-sm flex flex-col justify-between h-full">
