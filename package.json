@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/readOptimizations.cjs && node tests/inboxSummary.cjs && node tests/bedBilling.cjs && node tests/billingDoesNotDispense.cjs && node tests/dispenseMedication.cjs && node tests/dispenseBill.cjs && node tests/resetInventory.cjs && node tests/clerkingSheet.cjs && node tests/firestoreReadError.cjs && node tests/reportFormatting.cjs && node tests/reportPreviews.cjs && node tests/reportA4.cjs && node tests/stationaries.cjs",
+    "test": "node tests/readOptimizations.cjs && node tests/inboxSummary.cjs && node tests/bedBilling.cjs && node tests/billingDoesNotDispense.cjs && node tests/dispenseMedication.cjs && node tests/dispenseBill.cjs && node tests/resetInventory.cjs && node tests/clerkingSheet.cjs && node tests/firestoreReadError.cjs && node tests/reportFormatting.cjs && node tests/reportPreviews.cjs && node tests/reportA4.cjs && node tests/billDocument.cjs && node tests/stationaries.cjs",
     "indexes:links": "node scripts/createIndexLinks.cjs",
     "indexes:deploy": "npx firebase-tools@14 deploy --only firestore:indexes --project maranathasapphire --non-interactive"
   },
