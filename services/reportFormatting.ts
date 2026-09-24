@@ -2,6 +2,26 @@ import { Bill, Payment, Patient } from '../types';
 
 const amount = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0;
 
+
+/** Accept current Firestore timestamps and older imported date values. */
+export function reportDate(value: unknown): Date | null {
+    if (value === null || value === undefined || value === '') return null;
+    try {
+        const timestamp = value as { toDate?: () => Date; seconds?: number; _seconds?: number };
+        const seconds = timestamp.seconds ?? timestamp._seconds;
+        const date = typeof timestamp.toDate === 'function' ? timestamp.toDate()
+            : typeof seconds === 'number' ? new Date(seconds * 1000)
+            : new Date(value as string);
+        return Number.isFinite(date.getTime()) ? date : null;
+    } catch { return null; }
+}
+
+export function reportDateInRange(value: unknown, range: { start: Date; end: Date } | null): boolean {
+    if (!range) return true;
+    const date = reportDate(value);
+    return !!date && date >= range.start && date <= range.end;
+}
+
 export function financialReportSummary(bills: Bill[], payments: Payment[], patients: Patient[]) {
     return {
         'Total Sales': bills.reduce((total, bill) => total + amount(bill.totalBill), 0),
@@ -15,9 +35,7 @@ export function reportCellText(value: unknown, header: string, accessor = ''): s
     if (value === null || value === undefined) return '—';
     if (accessor === 'isLow') return value ? 'Low Stock' : 'OK';
     if (/date/i.test(accessor) || accessor === 'createdAt') {
-        const timestamp = value as { toDate?: () => Date };
-        const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(value as string);
-        return isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+        return reportDate(value)?.toLocaleDateString() ?? '—';
     }
     if (typeof value === 'number') {
         // Unit counts such as Stock Received must remain counts.

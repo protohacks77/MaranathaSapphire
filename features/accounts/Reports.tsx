@@ -7,7 +7,7 @@ import { Bill, Payment, Patient, InventoryItem } from '../../types';
 import { useNotification } from '../../context/NotificationContext';
 import './reports.css';
 import { firestoreReadError } from '../../services/firestoreReadError';
-import { financialReportSummary, reportCellText } from '../../services/reportFormatting';
+import { financialReportSummary, reportCellText, reportDate, reportDateInRange } from '../../services/reportFormatting';
 import { A4_WIDTH, A4_HEIGHT, paginateReport, renderReportPage, measureReportText, loadReportLogo, reportPageCanvas } from '../../services/reportA4';
 import { BarChart as BarChartIcon, FileText, ImageIcon, Users, BedDouble, UserCheck, CreditCard, AlertTriangle, UserRoundCheck, ShoppingCart, Package, Printer, Download, ChevronDown, X, Loader2 } from 'lucide-react';
 import firebase from 'firebase/compat/app';
@@ -153,7 +153,7 @@ const Reports: React.FC = () => {
         return { start, end };
     }, [datePreset, customStartDate, customEndDate]);
 
-    const { data: previewData = {}, loading: previewLoading } = useOfflineView<Record<string, any>>(
+    const { data: previewData = {}, loading: previewLoading, error: previewError } = useOfflineView<Record<string, any>>(
         `report-previews:${datePreset}:${dateRange?.start.toISOString()}:${dateRange?.end.toISOString()}:${previewReload}`,
         () => dateRange ? reportPreviews(dateRange) : Promise.resolve({}), 300_000,
     );
@@ -198,8 +198,8 @@ const Reports: React.FC = () => {
             }
             const allInventory = inventorySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as InventoryItem)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-            const billsInRange = dateRange ? allBills.filter(b => new Date(b.date) >= dateRange.start && new Date(b.date) <= dateRange.end) : allBills;
-            const paymentsInRange = dateRange ? allPayments.filter(p => new Date(p.date) >= dateRange.start && new Date(p.date) <= dateRange.end) : allPayments;
+            const billsInRange = allBills.filter(b => reportDateInRange(b.date, dateRange));
+            const paymentsInRange = allPayments.filter(p => reportDateInRange(p.date, dateRange));
             
             let report: Omit<GeneratedReport, 'type' | 'period' | 'generatedAt'> | null = null;
             
@@ -214,7 +214,7 @@ const Reports: React.FC = () => {
                         isLow: item.quantity <= item.lowStockThreshold
                     }));
 
-                    const dispensedMap: { [name: string]: { name: string, quantity: number, totalValue: number } } = {};
+                    const dispensedMap: { [name: string]: { name: string, quantity: number, totalValue: number } } = Object.create(null);
                     billsInRange.forEach(bill => {
                         (bill.items || []).forEach(item => {
                             const inventoryItem = allInventory.find(inv => inv.name === item.description);
@@ -231,11 +231,7 @@ const Reports: React.FC = () => {
                     const totalUnitsSold = stockUsedData.reduce((sum, item) => sum + item.quantity, 0);
                     const revenueFromStock = stockUsedData.reduce((sum, item) => sum + item.totalValue, 0);
 
-                    const stockInData = allInventory.filter(item => {
-                        if (!dateRange || !item.createdAt?.toDate) return false;
-                        const createdAtDate = item.createdAt.toDate();
-                        return createdAtDate >= dateRange.start && createdAtDate <= dateRange.end;
-                    });
+                    const stockInData = allInventory.filter(item => reportDateInRange(item.createdAt, dateRange));
             
                     report = {
                         title: 'Comprehensive Stock Report',
@@ -309,7 +305,7 @@ const Reports: React.FC = () => {
                     break;
                 
                 case 'top_selling_items':
-                    const itemMap: { [key: string]: { name: string; quantity: number; totalValue: number } } = {};
+                    const itemMap: { [key: string]: { name: string; quantity: number; totalValue: number } } = Object.create(null);
                     billsInRange.forEach(bill => {
                         (bill.items || []).forEach(item => {
                             if (!itemMap[item.description]) {
@@ -338,7 +334,7 @@ const Reports: React.FC = () => {
                         }],
                         summary: {
                             'Unique Items Sold': Object.keys(itemMap).length,
-                            'Total Items Sold': topItemsData.reduce((sum, item) => sum + item.quantity, 0)
+                            'Total Items Sold': Object.values(itemMap).reduce((sum, item) => sum + item.quantity, 0)
                         }
                     };
                     break;
@@ -406,11 +402,7 @@ const Reports: React.FC = () => {
                 
                 case 'admissions':
                     const admissionsData = allPatients
-                        .filter(p => {
-                            if (!dateRange) return false;
-                            const regDate = new Date(p.registrationDate);
-                            return regDate >= dateRange.start && regDate <= dateRange.end;
-                        })
+                        .filter(p => reportDateInRange(p.registrationDate, dateRange))
                         .map(p => ({
                             name: `${p.name} ${p.surname}`,
                             hospitalNumber: p.hospitalNumber,
@@ -471,7 +463,7 @@ const Reports: React.FC = () => {
                         fullName: `${p.name} ${p.surname}`,
                         age: p.age,
                         registrationDate: p.registrationDate
-                    })).sort((a,b) => new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime());
+                    })).sort((a,b) => (reportDate(b.registrationDate)?.getTime() ?? 0) - (reportDate(a.registrationDate)?.getTime() ?? 0));
 
                     report = {
                         title: 'Patient Census Report',
@@ -647,7 +639,7 @@ const Reports: React.FC = () => {
                                     <div className="w-full">
                                     <ReportPreview
                                         reportKey={report.key}
-                                        data={previewData[report.key]}
+                                        data={previewError ? { error: previewError } : previewData[report.key]}
                                         onRetry={() => setPreviewReload(value => value + 1)}
 
                                     />

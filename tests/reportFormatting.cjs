@@ -18,3 +18,10 @@ assert.equal(exported.reportCellText(null, 'Name'), '—');
 assert.equal(exported.reportCellText('invalid', 'Date', 'registrationDate'), '—');
 assert.equal(exported.reportCellText(true, 'Status', 'isLow'), 'Low Stock');
 console.log('Report totals and export formatting checks passed.');
+
+assert.equal(exported.reportCellText({ toDate() { throw new Error('Malformed timestamp'); } }, 'Date', 'createdAt'), '—');
+assert.equal(exported.reportCellText({ seconds: 1789689600 }, 'Date', 'createdAt'), new Date(1789689600000).toLocaleDateString());
+for (const value of ['2026-09-18', { seconds: 1789689600 }, { toDate: () => new Date('2026-09-18') }]) {
+    assert.equal(exported.reportDateInRange(value, { start: new Date('2026-09-01'), end: new Date('2026-09-30') }), true);
+}
+assert.equal(exported.reportDateInRange('invalid', { start: new Date('2026-09-01'), end: new Date('2026-09-30') }), false);

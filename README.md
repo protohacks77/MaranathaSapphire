@@ -44,3 +44,36 @@ Copy and paste the following code into your `netlify.toml` file:
     ```bash
     npm run build
     ```
+
+## GitHub repository and pushing changes
+
+- Repository: https://github.com/protohacks77/MaranathaSapphire
+- Remote: `origin`
+- Main branch: `main`
+
+Authenticate once with GitHub CLI (if installed), choosing GitHub.com, HTTPS,
+web browser login, and Git authentication when prompted:
+
+```bash
+gh auth login
+gh auth setup-git
+```
+
+Review, commit, and push your changes:
+
+```bash
+git status
+git diff
+# Stage the files you intend to publish; replace these example paths.
+git add path/to/changed-file path/to/another-file
+git diff --cached
+git commit -m "Describe your changes"
+git push -u origin main
+```
+
+If Git reports that the remote has newer commits, commit your local work first,
+then run `git pull --rebase origin main`, resolve any conflicts, and push again.
+
+Never put access tokens in repository files or remote URLs. Revoke any token
+shared in chat or committed to Git; use browser login or a secure credential
+manager for authentication.
