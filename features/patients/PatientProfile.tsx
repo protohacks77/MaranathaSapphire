@@ -1,3 +1,4 @@
+import { exportPatientReport } from '../../services/patientReportExport';
 import { firestoreReadError } from '../../services/firestoreReadError';
 import DatabaseIndexLink from '../../components/utils/DatabaseIndexLink';
 import ClerkingSheetPage from './ClerkingSheetPage';
@@ -1417,22 +1418,28 @@ const PatientProfile: React.FC = () => {
       const payments = paymentSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Payment));
 
       const styles = `
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10pt; color: #000; background: #fff; }
-        .container { width: 100%; padding: 20px; }
-        h1 { font-size: 18pt; font-weight: bold; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 20px; }
-        h2 { font-size: 14pt; font-weight: bold; color: #34495e; margin-top: 20px; margin-bottom: 10px; background-color: #f0f2f5; padding: 5px 10px; }
-        h3 { font-size: 12pt; font-weight: bold; color: #555; margin-top: 15px; margin-bottom: 5px; }
-        p { margin: 4px 0; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 9pt; }
-        th, td { border: 1px solid #bdc3c7; padding: 6px; text-align: left; }
-        th { background-color: #ecf0f1; font-weight: bold; }
-        .section { margin-bottom: 30px; }
-        .two-col { display: flex; justify-content: space-between; gap: 20px; }
-        .col { flex: 1; }
-        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 8pt; font-weight: bold; border: 1px solid #ccc; }
-        .note { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; background: #fdfdfd; }
-        .empty-state { color: #888; font-style: italic; font-size: 9pt; }
-        .amount { font-family: monospace; font-weight: bold; }
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.5; color: #24324b; background: #fff; }
+        .container { width: 714px; }
+        .report-brand { display: flex; align-items: center; gap: 18px; padding: 22px; border-radius: 10px; background: #f0edf8; border-left: 6px solid #6044a5; margin-bottom: 24px; }
+        .report-brand img { width: 68px; height: 68px; object-fit: contain; }
+        .report-brand h1 { margin: 0; color: #493184; font-size: 21pt; letter-spacing: 1px; }
+        .report-brand p { margin: 3px 0; font-size: 9pt; color: #5b6478; }
+        .report-title { margin-bottom: 24px; }
+        .report-title h2 { background: none; padding: 0; margin: 0 0 5px; color: #182945; font-size: 17pt; border: none; }
+        .report-title p { color: #64748b; font-size: 9pt; }
+        h2 { font-size: 12pt; color: #493184; margin: 20px 0 12px; background: #f1eef8; padding: 9px 12px; border-left: 3px solid #7561ae; }
+        h3 { font-size: 10pt; color: #334155; margin: 16px 0 8px; }
+        p { margin: 5px 0; overflow-wrap: anywhere; }
+        strong { color: #1e293b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; table-layout: fixed; font-size: 8.5pt; }
+        th, td { border: 1px solid #dbe2ef; padding: 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+        th { background: #493184; color: #fff; font-size: 8pt; font-weight: bold; }
+        tbody tr:nth-child(even) { background: #f7f8fc; }
+        .section { margin-bottom: 24px; }
+        .note { border: 1px solid #dbe2ef; border-left: 3px solid #7561ae; padding: 12px; margin-bottom: 12px; background: #fafbfe; border-radius: 4px; }
+        .empty-state { color: #788399; font-style: italic; font-size: 9pt; padding: 6px 0; }
+        .amount { font-weight: bold; white-space: nowrap; }
       `;
 
       // Helper to format date for print report in Zimbabwe Time
@@ -1440,9 +1447,12 @@ const PatientProfile: React.FC = () => {
 
       let htmlContent = `
         <div class="container">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h1>RCZ MORGENSTER HOSPITAL</h1>
-                <p style="font-size: 12pt;"><strong>CONFIDENTIAL PATIENT REPORT</strong></p>
+            <div class="report-brand">
+                <img src="/maranathalogo.png" alt="Maranatha-Sapphire logo">
+                <div><h1>MARANATHA-SAPPHIRE</h1><p>HOSPITAL · MASVINGO, ZIMBABWE</p></div>
+            </div>
+            <div class="report-title">
+                <h2>Confidential Patient Report</h2>
                 <p>Generated on: ${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Harare' })}</p>
             </div>
 
@@ -1715,29 +1725,13 @@ const PatientProfile: React.FC = () => {
         </div>
       `;
 
-    const finalHTML = `
-        <!DOCTYPE html>
-        <html>
-            <head><meta charset='utf-8'><title>Patient Report</title><style>${styles}</style></head>
-            <body>${htmlContent}</body>
-        </html>
-    `;
-
-    const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(finalHTML);
-    const fileDownload = document.createElement("a");
-    document.body.appendChild(fileDownload);
-    fileDownload.href = source;
-    fileDownload.download = `Report_${patient.name}_${patient.surname}.doc`;
-    fileDownload.click();
-    document.body.removeChild(fileDownload);
-
-    addNotification('Report downloading. Opening print dialog...', 'info');
-    
-    if(printWindow) {
-        printWindow.document.write(finalHTML);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+    try {
+        await exportPatientReport(htmlContent, styles, `Maranatha_Sapphire_Report_${patient.name}_${patient.surname}`, printWindow);
+        addNotification('Patient report downloaded as PDF.', 'success');
+    } catch (error) {
+        console.error('Patient report export failed:', error);
+        printWindow?.close();
+        addNotification('Could not generate the patient report PDF. Please retry.', 'error');
     }
   };
 
